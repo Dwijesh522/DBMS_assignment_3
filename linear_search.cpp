@@ -5,6 +5,7 @@
 #include "errors.h"
 #include <cstring>
 #include <fstream>
+#include <climits>
 
 using namespace std;
 
@@ -52,8 +53,43 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
 	 *	Outputs: pagehandler of the last page
 	 */
 	PageHandler last_page_handler = fh.LastPage();
+	int page_number = last_page_handler.GetPageNum();
 	if (not keep_pinned)	fh.UnpinPage(page_number);
 	return last_page_handler;
+}
+
+void printAnswers(FileManager &fm, char *file_path, string title) {
+	/*
+	 *	This function prints all integers stored in the file in pairs
+	 *	This function is mainly written for matching our answer with
+	 *	ground truth answer provided by TAs.
+	 *	It starts doing so in reverse order. From last page to first page.
+	 *	From bottom of the page to top of the page.
+	 */
+	cout << endl << title << endl;
+	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+	FileHandler file_handler = fm.OpenFile(file_path);
+	int last_page_num = getLastPageNumber(file_handler, /*keep pinned*/ false);
+	PageHandler page_handler = file_handler.FirstPage(); // pinned
+
+	while (true) {
+		char *data = page_handler.GetData();
+		cout << "page number: " << page_handler.GetPageNum() << ": ";
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+			// read two integers in pair starting from location i
+			int first_num, sec_num;
+			memcpy(&first_num, &data[i], sizeof(int));
+			memcpy(&sec_num, &data[i+sizeof(int)], sizeof(int));
+			cout << "(" << first_num <<", " << sec_num << ") ";
+		}
+		if (page_handler.GetPageNum() == last_page_num) break;
+		file_handler.UnpinPage(page_handler.GetPageNum()); // unpinned
+		page_handler = file_handler.NextPage(page_handler.GetPageNum()); // pinned
+		cout << endl;
+	}
+	file_handler.UnpinPage(page_handler.GetPageNum());
+	fm.CloseFile(file_handler);
+	cout << endl;
 }
 
 int main() {
@@ -69,7 +105,7 @@ int main() {
 	if (query_file.is_open()) {
 		string line;
 		while (getline(query_file, line)) {
-			int target_value = getSearchValue(line); // value to search for
+			int target_number = getSearchValue(line); // value to search for
 
 			// since the input file is sorted, once processed all target values,
 			// we need not process the remaining values
@@ -78,19 +114,19 @@ int main() {
 			PageHandler curr_page_handler = getLastPageHandler(input_handler, /*keep_pinned*/true);
 			
 			// Looping from last page to first page
-			do {
+			while (true) {
 				char *data = curr_page_handler.GetData();
-				for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= 4) {
+				for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
 					// traversing from the last entry of the page to first entry
 					int curr_number;
 					memcpy(&curr_number, &data[i], sizeof(int));
 					if (curr_number == target_number) {
 						found_it = true;
 						// store (page num, offset) into the output file page
-						int curr_page_number = curr_curr_page_handler.GetPageNum();
-						int offset = i;
+						int curr_page_number = curr_page_handler.GetPageNum();
+						int offset = i/sizeof(int);
 						if (integers_written_on_output_page >= integers_per_page) {
-							// flushPages will unpin it and write it back to odisk
+							output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
 							output_handler.FlushPages(); // write otuput page to disk and remove from buffer
 							output_page_handler = output_handler.NewPage();	// create new output page in buffer
 							integers_written_on_output_page = 0; // new page is empty
@@ -110,12 +146,15 @@ int main() {
 				// since we are done using the current input page, we can unpin it
 				input_handler.UnpinPage(curr_page_handler.GetPageNum());
 				if (query_processed) break;
-			} while (curr_page_handler.GetPageNum() != 0/*page number of the first page*/);
+				if (curr_page_handler.GetPageNum() == 0) break; // we are done processing all input pages
+				curr_page_handler = input_handler.PrevPage(curr_page_handler.GetPageNum()); // by default pinned
+			}
 			
+			input_handler.UnpinPage(curr_page_handler.GetPageNum());// so that it can be replaced
 			fm.CloseFile(input_handler);
 			// Since we are done with one query, writing (-1, -1) pair in output page
 			if (integers_written_on_output_page >= integers_per_page) {
-				// flushPages will unpin it and write it back to disk
+				output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
 				output_handler.FlushPages(); // write otuput page to disk and remove from buffer
 				output_page_handler = output_handler.NewPage();	// create new output page in buffer
 				integers_written_on_output_page = 0; // new page is empty
@@ -126,7 +165,7 @@ int main() {
 			memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &MINUS_ONE, sizeof(int));
 			++integers_written_on_output_page;
 
-			break; // #TODO: remove this line for processing all queries
+			//break; // #TODO: remove this line for processing all queries
 		}
 		// fill the empty space with int_min
 		for (int j=integers_written_on_output_page; j<= integers_per_page; ++j) {	
@@ -136,8 +175,14 @@ int main() {
 		}
 	}
 	else cout << "Unable to open query file\n";
-	// flush output pages
-	output_handler.FlushPages();
+	output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
+	output_handler.FlushPages(); // flush output pages
 	fm.CloseFile (output_handler);
+
+	// #TODO: following lines are only for debugging. Remove it in final submission
+	char *my_output = "./output_search";
+	char *ta_output = "./TestCases/TC_search/output_search";
+	printAnswers(fm, my_output, "My output");
+	printAnswers(fm, ta_output, "TA output");
 	return 0;
 }
