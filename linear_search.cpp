@@ -62,9 +62,8 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 	/*
 	 *	This function prints all integers stored in the file in pairs
 	 *	This function is mainly written for matching our answer with
-	 *	ground truth answer provided by TAs.
-	 *	It starts doing so in reverse order. From last page to first page.
-	 *	From bottom of the page to top of the page.
+	 *	ground truth answer provided by TAs. Call this funtion on both
+	 *	files one after another and check correctness manually.
 	 */
 	cout << endl << title << endl;
 	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
