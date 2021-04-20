@@ -27,11 +27,11 @@ void linearSearch(const int &integers_per_page, char *input1_data, char *input2_
 
 int main() {
 
-	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
-	FileManager fm;
-	FileHandler output_handler = fm.CreateFile(output_file_path);
-	PageHandler output_page_handler = output_handler.NewPage(); // pinned and dirty
-	int integers_written_on_output_page = 0;
+    int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+    FileManager fm;
+    FileHandler output_handler = fm.CreateFile(output_file_path);
+    PageHandler output_page_handler = output_handler.NewPage(); // pinned and dirty
+    int integers_written_on_output_page = 0;
 
     FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
     PageHandler input1_page_handler = getLastPageHandler(input1_handler, /*keep pinned*/true); // pinned
@@ -43,7 +43,7 @@ int main() {
 
             char *input2_data = input2_page_handler.GetData();
             linearSearch(/*passed by value*/integers_per_page, input1_data, input2_data, output_handler, 
-                         /*passed by ref*/output_page_handler, integers_written_on_output_page);
+                        /*passed by ref*/output_page_handler, integers_written_on_output_page);
 
             if (input2_page_handler.GetPageNum() == 0) break; // finished reading input2 file
             input2_page_handler = input2_handler.PrevPage(input2_page_handler.GetPageNum()); // pinned
@@ -56,11 +56,11 @@ int main() {
     }
 
     fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
-	output_handler.FlushPages(); // flush all pages since we are done
-	fm.CloseFile (output_handler);
+    output_handler.FlushPages(); // flush all pages since we are done
+    fm.CloseFile (output_handler);
 
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
-	return 0;
+    return 0;
 }
 
 // Helper functions
@@ -112,33 +112,33 @@ void fillWithIntMin(PageHandler &ph, const int &integers_per_page, int &integers
     }
 }
 int getLastPageNumber(FileHandler &fh, bool keep_pinned=false) {
-	/*
-	 *	When we call fh.LastPage().getPageNum(), it brings the last page
-	 *	into memory if not already in memory. By default it is pinned.
-	 *	Inputs:
-	 *		fh : file handler from wich to find the page number of last page
-	 *		keep_pinned : whether to keep the last page pinned or not
-	 *	Outputs: page number of the last page
-	 */
-	PageHandler last_page_handler = fh.LastPage();
-	int page_number = last_page_handler.GetPageNum();
-	if (not keep_pinned)	fh.UnpinPage(page_number);
-	return page_number;
+    /*
+     *	When we call fh.LastPage().getPageNum(), it brings the last page
+     *	into memory if not already in memory. By default it is pinned.
+     *	Inputs:
+     *		fh : file handler from wich to find the page number of last page
+     *		keep_pinned : whether to keep the last page pinned or not
+     *	Outputs: page number of the last page
+     */
+    PageHandler last_page_handler = fh.LastPage();
+    int page_number = last_page_handler.GetPageNum();
+    if (not keep_pinned)	fh.UnpinPage(page_number);
+    return page_number;
 }
 
 PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
-	/*
-	 *	When we call fh.LastPage().getPageNum(), it brings the last page
-	 *	into memory if not already in memory. By default it is pinned.
-	 *	Inputs:
-	 *		fh : file handler from wich to find the page number of last page
-	 *		keep_pinned : whether to keep the last page pinned or not
-	 *	Outputs: pagehandler of the last page
-	 */
-	PageHandler last_page_handler = fh.LastPage();
-	int page_number = last_page_handler.GetPageNum();
-	if (not keep_pinned)	fh.UnpinPage(page_number);
-	return last_page_handler;
+    /*
+     *	When we call fh.LastPage().getPageNum(), it brings the last page
+     *	into memory if not already in memory. By default it is pinned.
+     *	Inputs:
+     *		fh : file handler from wich to find the page number of last page
+     *		keep_pinned : whether to keep the last page pinned or not
+     *	Outputs: pagehandler of the last page
+     */
+    PageHandler last_page_handler = fh.LastPage();
+    int page_number = last_page_handler.GetPageNum();
+    if (not keep_pinned)	fh.UnpinPage(page_number);
+    return last_page_handler;
 }
 
 vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
@@ -148,27 +148,27 @@ vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
 	 *	ground truth answer provided by TAs.
 	 */
     vector<int> answers;
-	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
-	FileHandler file_handler = fm.OpenFile(file_path);
-	int last_page_num = getLastPageNumber(file_handler, /*keep pinned*/ false);
-	PageHandler page_handler = file_handler.FirstPage(); // pinned
+    int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+    FileHandler file_handler = fm.OpenFile(file_path);
+    int last_page_num = getLastPageNumber(file_handler, /*keep pinned*/ false);
+    PageHandler page_handler = file_handler.FirstPage(); // pinned
 
-	while (true) {
-		char *data = page_handler.GetData();
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
-			// read two integers in pair starting from location i
-			int first_num, sec_num;
-			memcpy(&first_num, &data[i], sizeof(int));
-			memcpy(&sec_num, &data[i+sizeof(int)], sizeof(int));
-		    answers.push_back(first_num);
+    while (true) {
+        char *data = page_handler.GetData();
+        for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+            // read two integers in pair starting from location i
+            int first_num, sec_num;
+            memcpy(&first_num, &data[i], sizeof(int));
+            memcpy(&sec_num, &data[i+sizeof(int)], sizeof(int));
+            answers.push_back(first_num);
             answers.push_back(sec_num);
         }
-		if (page_handler.GetPageNum() == last_page_num) break;
-		file_handler.UnpinPage(page_handler.GetPageNum()); // unpinned
-		page_handler = file_handler.NextPage(page_handler.GetPageNum()); // pinned
-	}
-	file_handler.UnpinPage(page_handler.GetPageNum());
-	fm.CloseFile(file_handler);
+        if (page_handler.GetPageNum() == last_page_num) break;
+        file_handler.UnpinPage(page_handler.GetPageNum()); // unpinned
+        page_handler = file_handler.NextPage(page_handler.GetPageNum()); // pinned
+    }
+    file_handler.UnpinPage(page_handler.GetPageNum());
+    fm.CloseFile(file_handler);
 
     return answers;
 }
