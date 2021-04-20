@@ -142,11 +142,11 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
 }
 
 vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
-	/*
-	 *	This function returns all integers stored in the file
-	 *	This function is mainly written for matching our answer with
-	 *	ground truth answer provided by TAs.
-	 */
+    /*
+     *	This function returns all integers stored in the file
+     *	This function is mainly written for matching our answer with
+     *	ground truth answer provided by TAs.
+     */
     vector<int> answers;
     int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
     FileHandler file_handler = fm.OpenFile(file_path);
@@ -188,10 +188,10 @@ void validateAnswers(FileManager &fm) {
         It then sorts it and sees if corresponding entries are same or not.
         Ideally after sorting, corresponding entries mush match.
     */
-	char *my_output = "./output_join1";
-	char *ta_output = "./TestCases/TC_join1/output_join1";
-	vector<int> my_answers = getAnswers(fm, my_output, "My output");
-	vector<int> ta_answers = getAnswers(fm, ta_output, "TA output");
+    char *my_output = "./output_join1";
+    char *ta_output = "./TestCases/TC_join1/output_join1";
+    vector<int> my_answers = getAnswers(fm, my_output, "My output");
+    vector<int> ta_answers = getAnswers(fm, ta_output, "TA output");
     int size = my_answers.size();
     sort(&my_answers[0], (&my_answers[0]) + size);
     sort(&ta_answers[0], (&ta_answers[0]) + size);
