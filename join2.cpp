@@ -212,6 +212,8 @@ int main() {
     fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
 	output_handler.FlushPages(); // flush all pages since we are done
 	fm.CloseFile (output_handler);
+    fm.CloseFile(input1_handler);
+    fm.CloseFile(input2_handler);
 
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
 	return 0;
