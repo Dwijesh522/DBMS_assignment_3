@@ -34,10 +34,10 @@ int main() {
     int integers_written_on_output_page = 0;
 
     FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
+    FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
     PageHandler input1_page_handler = getLastPageHandler(input1_handler, /*keep pinned*/true); // pinned
     while (true) { // traversing from back
         char *input1_data = input1_page_handler.GetData();
-        FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
         PageHandler input2_page_handler = getLastPageHandler(input2_handler, /*keep_pinned*/false); // unpinned
         while( true ) { // traversing from back
 
@@ -58,6 +58,8 @@ int main() {
     fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
     output_handler.FlushPages(); // flush all pages since we are done
     fm.CloseFile (output_handler);
+    fm.CloseFile(input1_handler);
+    fm.CloseFile(input2_handler);
 
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
     return 0;
