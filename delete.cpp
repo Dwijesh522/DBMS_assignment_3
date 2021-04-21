@@ -6,7 +6,8 @@
 #include <cstring>
 #include <fstream>
 #include <climits>
-#include "binary_search.cpp"
+#include <vector>
+// #include "binary_search_del.cpp"
 
 using namespace std;
 
@@ -23,9 +24,11 @@ int getDeleteValue(const string &line) {
 	return stoi(number);
 }
 
+int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+int last_index = PAGE_CONTENT_SIZE - sizeof(int);
 const char *input_file_path = "./TestCases/TC_delete/sorted_input";
-const char *query_file_path = "./TestCases/TC_search/query_delete.txt";
-const char *output_file_path = "./output_delete"; // create output in pwd
+const char *query_file_path = "./TestCases/TC_delete/query_delete.txt";
+// const char *output_file_path = "./output_delete"; // create output in pwd
 int MINUS_ONE = -1;
 int int_min = INT_MIN;
 int last_page = -1;
@@ -46,14 +49,14 @@ int getLastPageNumber(FileHandler &fh, bool keep_pinned=false) {
 }
 
 PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
-	/*
-	 *	When we call fh.LastPage().getPageNum(), it brings the last page
-	 *	into memory if not already in memory. By default it is pinned.
-	 *	Inputs:
-	 *		fh : file handler from wich to find the page number of last page
-	 *		keep_pinned : whether to keep the last page pinned or not
-	 *	Outputs: pagehandler of the last page
-	 */
+	
+	 // *	When we call fh.LastPage().getPageNum(), it brings the last page
+	 // *	into memory if not already in memory. By default it is pinned.
+	 // *	Inputs:
+	 // *		fh : file handler from wich to find the page number of last page
+	 // *		keep_pinned : whether to keep the last page pinned or not
+	 // *	Outputs: pagehandler of the last page
+	 
 	PageHandler last_page_handler = fh.LastPage();
 	int page_number = last_page_handler.GetPageNum();
 	if (not keep_pinned)	fh.UnpinPage(page_number);
@@ -80,6 +83,197 @@ PageHandler getMidPageHandler(FileHandler &fh){
 	int mid_num = last_pg_num/2;
 	PageHandler mid_page_handler = getPageHandler(fh, mid_num, true);
 	return mid_page_handler;
+}
+
+vector<vector<int> > binary_search(int target_number, FileHandler &input_handler, PageHandler &start_page_handler){
+
+    vector<vector<int> > answer(2, vector<int>(2,INT_MIN));
+    answer[0][0] = INT_MAX, answer[0][1] = INT_MAX;
+
+//    cout<<"Target : "<<target_number<<endl;
+    // since the input file is sorted, once processed all target values,
+    // we need not process the remaining values
+    bool go_fwd = false, go_bwd = false, query_processed = false;
+    bool bwd_search_done = false, fwd_search_done = false;
+    int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
+//    cout<<total_pages<<endl;
+    int top_pg = 0;
+    int bottom_pg = total_pages;
+    int curr_page_number;
+    // Page found by binary search
+    int index_page_number=-1;
+    PageHandler curr_page_handler;
+    int search_count = 0;
+    int count_fwd = 0;
+    int count_bwd = 0;
+    bool start = false;
+    // Binary Search on pages
+    while (top_pg <= bottom_pg && search_count<=total_pages) {
+        search_count++;
+        // Update to next page
+         if(index_page_number<0){
+            curr_page_number = (top_pg+bottom_pg)/2;
+        }
+        // index_page found, go backwards
+        if (go_bwd && !bwd_search_done){
+            count_bwd++;
+            if(index_page_number - count_bwd >=0)
+                curr_page_number = index_page_number - count_bwd;
+            else{
+                bwd_search_done = true;
+            }
+
+        }
+        // index page found and backward search done, now do forward search
+        if(go_fwd && !fwd_search_done && bwd_search_done){
+            count_fwd++;
+            if(index_page_number + count_fwd < total_pages + 1)
+                curr_page_number = index_page_number+count_fwd;
+            else{
+                fwd_search_done = true;
+            }
+        }
+
+        // searched back and forth from index page. Exit.
+        if(fwd_search_done && bwd_search_done)
+            break;
+
+        // cout<<"Page "<<curr_page_number<<endl;
+        if (!start){
+            curr_page_handler = start_page_handler;
+            start = true;
+        }
+        else
+            curr_page_handler = getPageHandler(input_handler, curr_page_number, /*keep_pinned*/true);
+        char *data = curr_page_handler.GetData();
+
+        // first entry on curr page
+        int curr_number_top;
+        memcpy(&curr_number_top, &data[0], sizeof(int));
+
+        // last entry on curr page
+        int curr_number_bottom;
+        memcpy(&curr_number_bottom, &data[last_index], sizeof(int));
+
+        if(curr_number_top < target_number){
+            // not found yet
+            if (curr_number_bottom>INT_MIN && curr_number_bottom < target_number){
+                // if already go_bwd then stop bwd search
+                if (go_bwd){ bwd_search_done = true;}
+                // update top_pg for binary search
+                else {top_pg = curr_page_number+1;}
+            }
+
+            // Found the start
+            else if(curr_number_bottom >= target_number || curr_number_bottom==INT_MIN){
+                start_page_handler = curr_page_handler;  //setting page handler to start occurrence
+                // Found the index page - now just go up and down in directory from this page
+                if(index_page_number<0)
+                    index_page_number = curr_page_number;
+                go_bwd = true, bwd_search_done = true; /* no need to check pages before as curr_number_top < target_number */
+                go_fwd = true;
+
+                bool found_it = false;
+                for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
+                    // traversing from the last entry of the page to first entry
+                    int curr_number;
+                    memcpy(&curr_number, &data[i], sizeof(int));
+//                    cout<<"Page numb:"<<curr_page_number<<" val "<<curr_number<<endl;
+                    if (curr_number == target_number) {
+                        found_it = true;
+                        // store (page num, offset) into the output file page
+                        int offset = i/sizeof(int);
+                        // cout<<"Page numb:"<<curr_page_number<<" at "<<offset<< " val = "<< curr_number<<endl;
+                        //update start point
+                        if (answer[0][0] > curr_page_number){
+                            answer[0][0] = curr_page_number;
+                            answer[0][1] = offset;
+                        }
+                        else if(answer[0][0] == curr_page_number && answer[0][1]>offset){
+                            answer[0][1] = offset;
+                        }
+                        //update end point
+                        if (answer[1][0] < curr_page_number){
+                            answer[1][0] = curr_page_number;
+                            answer[1][1] = offset;
+                        }
+                        else if(answer[1][0] == curr_page_number && answer[1][1]<offset){
+                            answer[1][1] = offset;
+                        }
+
+                    }
+                    else if (curr_number != target_number && found_it) {
+                        fwd_search_done = true;  /* no need to search prev pages */
+                        break;
+                    }
+                }
+            }
+        }
+
+        if(curr_number_top == target_number){
+            if(index_page_number<0){
+                index_page_number = curr_page_number;
+                go_bwd = true;
+                go_fwd = true;
+            }
+
+            if(go_bwd && !bwd_search_done)
+                start_page_handler = curr_page_handler;
+
+
+            /* search within the page */
+            bool found_it = false;
+            for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
+                // traversing from the last entry of the page to first entry
+                int curr_number;
+                memcpy(&curr_number, &data[i], sizeof(int));
+//                cout<<"Page numb:"<<curr_page_number<<" val "<<curr_number<<endl;
+                if (curr_number == target_number) {
+                    found_it = true;
+                    // store (page num, offset) into the output file page
+                    int offset = i/sizeof(int);
+                    // cout<<"Page numb:"<<curr_page_number<<" at "<<offset<< " val = "<< curr_number<<endl;
+
+                    //update start point
+                    if (answer[0][0] > curr_page_number){
+                        answer[0][0] = curr_page_number;
+                        answer[0][1] = offset;
+                    }
+                    else if(answer[0][0] == curr_page_number && answer[0][1]>offset){
+                        answer[0][1] = offset;
+                    }
+                    //update end point
+                    if (answer[1][0] < curr_page_number){
+                        answer[1][0] = curr_page_number;
+                        answer[1][1] = offset;
+                    }
+                    else if(answer[1][0] == curr_page_number && answer[1][1]<offset){
+                        answer[1][1] = offset;
+                    }
+                }
+                else if (curr_number != target_number && found_it) {
+                    // we are done with bwd search since looped backward
+                    fwd_search_done = true;  /* no need to search next pages */
+                    break;
+                }
+            }
+        }
+
+        if(curr_number_top > target_number){
+            // if already go_fwd then stop fwd search here
+            if(go_fwd){fwd_search_done = true;}
+            // missed : go back in binary search
+            else {bottom_pg = curr_page_number -1;}
+        }
+
+        // since we are done using the current input page, we can unpin it
+        input_handler.UnpinPage(curr_page_handler.GetPageNum());
+        // Done all search up and down
+        if (fwd_search_done && bwd_search_done) break;
+    }
+
+    // cout<<"Page num: "<<start_page_handler.GetPageNum()<<endl;
+	return answer;
 }
 
 void printAnswers(FileManager &fm, char *file_path, string title) {
@@ -116,36 +310,40 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 }
 
 int main() {
-
-	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
-	int last_index = PAGE_CONTENT_SIZE - sizeof(int);
+	// cout << sizeof(int) << endl;
 	FileManager fm;
 	FileHandler input_handler = fm.OpenFile(input_file_path);
-
-	PageHandler bin_start_handler = getMidPageHandler(input_handler);
-
+	PageHandler bin_start_handler;
+	// exit(0);
 	// reading query files
 	ifstream query_file (query_file_path);
 	if (query_file.is_open()) {
 		string line;
 		while (getline(query_file, line)) {
+			// char *m_output = "./TestCases/TC_delete/sorted_input";
+			// printAnswers(fm, m_output, "My output");
+
 			int target_number = getDeleteValue(line); // value to search for
-            cout<<"Target : "<<target_number<<endl;
+            // cout<<"Target : "<<target_number<<endl;
 			
 			// since the input file is sorted, once processed all target values,
 			// we need not process the remaining values
+			bin_start_handler = getMidPageHandler(input_handler);	
+			vector<vector<int> > loc;
 			loc = binary_search(target_number, input_handler, bin_start_handler);
 			// Binary search procedure updates the bin_start_handler to point to the page of first occurence of the integer to be deleted.
+			// cout << loc[0][0] << " " << loc[0][1] << " " << loc[1][0] << " " << loc[1][1] << endl;
 			int write_page_num = loc[0][0];
-			int write_offset = loc[0][1];
+			int write_offset = loc[0][1] * sizeof(int);
 			int rd_pg_num = loc[1][0];
-			int rd_offset = loc[1][1] + sizeof(int);
+			int rd_offset = (loc[1][1] * sizeof(int)) + sizeof(int);
 
 			if (write_page_num == INT_MAX){
-				cout << "Number not found!" << endl;
+				// cout << "Number not found!" << endl;
 				continue;
 			}
 
+			bin_start_handler = input_handler.PageAt(loc[0][0]);
 			char *data = bin_start_handler.GetData();
 			// Page where number first occurred is in memory already
 			if (write_page_num == last_page){
@@ -185,6 +383,7 @@ int main() {
 					last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
 					last_data = last_occur_pg_handler.GetData();
 					memcpy(&val, &last_data[rd_offset], sizeof(int));
+					// cout << "Start Val is " << val << endl;
 				}
 				else{
 					//If last occurrence is at last offset of the last page. No INT_MIN after that.
@@ -222,6 +421,7 @@ int main() {
 				}
 				else{
 					while(val != int_min && (rd_pg_num != last_page || rd_offset != last_index + sizeof(int))) { // Main data copying loop
+						// cout << "First write of " << val << " at offset " << write_offset << " on page number " << write_page_num << endl;
 						memcpy(&data[write_offset], &val, sizeof(int));
 						if (write_offset == last_index){ //If writing to a page complete, proceed to the next page
 							input_handler.MarkDirty(write_page_num);
@@ -281,16 +481,38 @@ int main() {
 					}
 				}
 			}
+		// char *my_output = "./TestCases/TC_delete/sorted_input";
+		// char *ta_output = "./TestCases/TC_delete/output_delete";
+		// printAnswers(fm, my_output, "My output");
+		// printAnswers(fm, ta_output, "TA output");
 		}
 	}
 	else cout << "Unable to open query file\n";
-
-	cout<<"Exited"<<endl;
+	// cout<<"Exited"<<endl;
+	// char *my_output = "./TestCases/TC_delete/sorted_input";
+	// char *ta_output = "./TestCases/TC_delete/output_delete";
+	// printAnswers(fm, my_output, "My output");
+	// printAnswers(fm, ta_output, "TA output");
 	
 	// #TODO: following lines are only for debugging. Remove it in final submission
-	// char *my_output = "./output_search";
-	char *ta_output = "./TestCases/TC_delete/output_delete";
-	printAnswers(fm, my_output, "My output");
-	printAnswers(fm, ta_output, "TA output");
 	return 0;
 }
+
+/*
+DELETE 3
+DELETE 20
+DELETE 1000
+DELETE 12
+DELETE 23
+DELETE 20
+DELETE 19
+DELETE 2
+DELETE 5
+DELETE 6
+DELETE 8
+DELETE 10
+DELETE 11
+DELETE 13
+DELETE 15
+DELETE 18
+*/
