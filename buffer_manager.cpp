@@ -42,6 +42,7 @@ char* BufferManager::GetPage(PageDescriptor pd) {
 		// to establish replacement policy, make page MRU 
 		usedList.remove(slotNo); 
 		usedList.push_front(slotNo); // put at front
+		buffers[slotNo].pinned = true;
 		return buffers[slotNo].data;
 	}
 	else {
