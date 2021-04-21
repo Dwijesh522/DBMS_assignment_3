@@ -5,6 +5,7 @@
 sampleobjects = buffer_manager.o file_manager.o sample_run.o
 linear_search_objects = buffer_manager.o file_manager.o linear_search.o
 join1_objects = buffer_manager.o file_manager.o join1.o
+join2_objects = buffer_manager.o file_manager.o join2.o
 
 
 linear_search : $(linear_search_objects)
@@ -12,6 +13,9 @@ linear_search : $(linear_search_objects)
 
 join1 : $(join1_objects)
 	g++ -std=c++11 -o join1 $(join1_objects)
+
+join2 : $(join2_objects)
+	g++ -std=c++11 -o join2 $(join2_objects)
 
 sample_run : $(sampleobjects)
 	g++ -std=c++11 -o sample_run $(sampleobjects)
@@ -25,6 +29,9 @@ linear_search.o : linear_search.cpp
 
 join1.o : join1.cpp
 	g++ -std=c++11 -c join1.cpp
+
+join2.o : join2.cpp
+	g++ -std=c++11 -c join2.cpp
 
 buffer_manager.o : buffer_manager.cpp
 	g++ -std=c++11 -c buffer_manager.cpp
