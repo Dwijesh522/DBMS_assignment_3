@@ -96,6 +96,7 @@ int main() {
 	int last_index = PAGE_CONTENT_SIZE - sizeof(int);
 	FileManager fm;
 	FileHandler output_handler = fm.CreateFile(output_file_path);
+    FileHandler input_handler = fm.OpenFile(input_file_path);
 	// by default following page is pinned and marked dirty
 	PageHandler output_page_handler = output_handler.NewPage();
 	int integers_written_on_output_page = 0;
@@ -110,7 +111,6 @@ int main() {
 			// we need not process the remaining values
 			bool go_fwd = false, go_bwd = false, query_processed = false;
 			bool bwd_search_done = false, fwd_search_done = false;
-			FileHandler input_handler = fm.OpenFile(input_file_path);
             int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
 			int top_pg = 0;
 			int bottom_pg = total_pages;
@@ -261,7 +261,6 @@ int main() {
 				if (fwd_search_done && bwd_search_done) break;
 			}
 
-			fm.CloseFile(input_handler);
 			// Since we are done with one query, writing (-1, -1) pair in output page
 			if (integers_written_on_output_page >= integers_per_page) {
 				output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
@@ -290,6 +289,7 @@ int main() {
 	output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
 	output_handler.FlushPages(); // flush output pages
 	fm.CloseFile (output_handler);
+	fm.CloseFile(input_handler);
 
 	// #TODO: following lines are only for debugging. Remove it in final submission
 	char *my_output = "./output_search";
