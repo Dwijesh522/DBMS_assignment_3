@@ -140,6 +140,7 @@ int main(int argc, char **argv) {
     FileHandler test_file2 = fm.CreateFile("test_file2");
     FileHandler test_file3 = fm.CreateFile("test_file3");
     FileHandler test_file4 = fm.CreateFile("test_file4");
+    FileHandler test_file5 = fm.CreateFile("test_file5");
 
     updateFile1(test_file1);
 
@@ -163,6 +164,7 @@ int main(int argc, char **argv) {
     printAnswers(fm, file_path2, "test_file2");
     printAnswers(fm, file_path3, "test_file3");
     printAnswers(fm, file_path4, "test_file4");
+    cout << "\ntest_file5\n" << "Empty file with no page\n";
 
     int search_arr[4] = {1, 5, 6, 9};
     writeIntoTextFile("testcase_search.txt", "SEARCH", search_arr, 4);
