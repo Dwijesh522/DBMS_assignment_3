@@ -1,5 +1,5 @@
 //Sample file for students to get their code running
-
+//Lat page initialized to -2
 #include <iostream>
 #include "file_manager.h"
 #include "errors.h"
@@ -412,6 +412,15 @@ int main(int argc, char **argv) {
 						}
 					}
 					if (rd_pg_num == last_page && val == int_min){
+						if (write_offset == 0){
+							while(rd_pg_num >= write_page_num){
+								input_handler.DisposePage(rd_pg_num);
+								input_handler.FlushPage(rd_pg_num);
+								rd_pg_num--;
+								last_page--;
+							}
+							continue;
+						}
 						while(write_offset != (last_index + sizeof(int))) { // Fill the remaining spots on the current write page with int_min.
 							memcpy(&data[write_offset], &int_min, sizeof(int));
 							write_offset += sizeof(int);
@@ -511,6 +520,7 @@ int main(int argc, char **argv) {
 	// cout<<"Exited"<<endl;
 	// char *my_output = "./TestCases/TC_delete/sorted_input";
 	// char *ta_output = "./TestCases/TC_delete/output_delete";
+	cout << last_page << endl;
 	printAnswers(fm, input_file_path, "My output");
 	fm.CloseFile(input_handler);
 	// printAnswers(fm, ta_output, "TA output");
