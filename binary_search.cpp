@@ -72,7 +72,7 @@ vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
 
 	while (true) {
 		char *data = page_handler.GetData();
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
 			// read two integers in pair starting from location i
 			int first_num, sec_num;
 			memcpy(&first_num, &data[i], sizeof(int));
@@ -116,7 +116,7 @@ void validateAnswers(FileManager &fm) {
     printVector(ta_answers, "ta answers");
     bool correct = true;
     for (int i=0; i<size; ++i) {
-        if (my_answers[i] != ta_answers[i]) {
+        if (my_answers[i] != ta_answers[i] && my_answers[i]>INT_MIN) {
             cout << "ERROR: answer mismatch\n";
             cout << "your answer: " << my_answers[i] << endl;
             cout << "TA's answer: " << ta_answers[i] << endl;
@@ -143,7 +143,7 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 	while (true) {
 		char *data = page_handler.GetData();
 		cout << "page number: " << page_handler.GetPageNum() << ": ";
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
 			// read two integers in pair starting from location i
 			int first_num, sec_num;
 			memcpy(&first_num, &data[i], sizeof(int));
@@ -364,8 +364,11 @@ int main() {
 	// #TODO: following lines are only for debugging. Remove it in final submission
 	char *my_output = "./output_search";
 	char *ta_output = "./TestCases/TC_search/output_search";
+	char *input = "./TestCases/TC_search/sorted_input";
+    //	validateAnswers(fm);
+    //	printAnswers(fm, my_output, "My output");char *ta_output = "./TestCases/TC_search/output_search";
 	validateAnswers(fm);
-	printAnswers(fm, my_output, "My output");
-	printAnswers(fm, ta_output, "TA output");
+    //	printAnswers(fm, my_output, "My output");
+	printAnswers(fm, input, "input");
 	return 0;
 }
