@@ -11,9 +11,9 @@
 using namespace std;
 
 // global variables
-const char *input1_file_path = "./TestCases/TC_join1/input1_join1";
-const char *input2_file_path = "./TestCases/TC_join1/input2_join1";
-const char *output_file_path = "./output_join1"; // create output in pwd
+char *input1_file_path;
+char *input2_file_path;
+char *output_file_path; // create output in pwd
 int MINUS_ONE = -1;
 int int_min = INT_MIN;
 
@@ -23,14 +23,16 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned);
 void fillWithIntMin(PageHandler &ph, const int &integers_per_page, int &integers_written_on_output_page);
 void validateAnswers(FileManager &fm);
 void linearSearch(const int &integers_per_page, char *input1_data, char *input2_data, FileHandler &output_handler, 
-                  PageHandler &output_page_handler, int &integers_written_on_output_page);
+                  PageHandler &output_page_handler, int &integers_written_on_output_page, bool &join_exists);
+void updateFilePaths(int argc, char **argv);
 
-int main() {
-
+int main(int argc, char **argv) {
+    updateFilePaths(argc, argv);
     int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
     FileManager fm;
     FileHandler output_handler = fm.CreateFile(output_file_path);
-    PageHandler output_page_handler = output_handler.NewPage(); // pinned and dirty
+    bool join_exists = false;
+    PageHandler output_page_handler;
     int integers_written_on_output_page = 0;
 
     FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
@@ -43,7 +45,7 @@ int main() {
 
             char *input2_data = input2_page_handler.GetData();
             linearSearch(/*passed by value*/integers_per_page, input1_data, input2_data, output_handler, 
-                        /*passed by ref*/output_page_handler, integers_written_on_output_page);
+                        /*passed by ref*/output_page_handler, integers_written_on_output_page, join_exists);
 
             if (input2_page_handler.GetPageNum() == 0) break; // finished reading input2 file
             input2_page_handler = input2_handler.PrevPage(input2_page_handler.GetPageNum()); // pinned
@@ -55,7 +57,7 @@ int main() {
         input1_page_handler = input1_handler.PrevPage(input1_page_handler.GetPageNum()); // bringing input1 page in buffer
     }
 
-    fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
+    if (join_exists) fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
     output_handler.FlushPages(); // flush all pages since we are done
     fm.CloseFile (output_handler);
     fm.CloseFile(input1_handler);
@@ -67,6 +69,17 @@ int main() {
 
 // Helper functions
 
+void updateFilePaths(int argc, char **argv) {
+    /* update file paths using command line args*/
+    if (argc != 4) {
+        cout << "ERROR: commandline arguments expected\n";
+        exit(0);
+    }
+    input1_file_path = argv[1];
+    input2_file_path = argv[2];
+    output_file_path = argv[3];
+}
+
 inline int charToInt(char *array, int offset) {
     /* returns int(array[offset]); */
     int data;
@@ -74,8 +87,8 @@ inline int charToInt(char *array, int offset) {
     return data;
 }
 
-void linearSearch(const int &integers_per_page, char *input1_data, char *input2_data, FileHandler &output_handler, 
-                  PageHandler &output_page_handler, int &integers_written_on_output_page) {
+void linearSearch(const int &integers_per_page, char *input1_data, char *input2_data, FileHandler &output_handler,
+                  PageHandler &output_page_handler, int &integers_written_on_output_page, bool &join_exists) {
     /*
         for every integer in input1 data, for every integer in input2 data, if both integers
         are same then it writes in the output page. If output page is full then it will flush
@@ -84,9 +97,16 @@ void linearSearch(const int &integers_per_page, char *input1_data, char *input2_
     */
     for (int i=0; i<integers_per_page; ++i) {
         int input1 = charToInt(input1_data, i*sizeof(int));
+        if (input1 == INT_MIN) break;
         for (int j=0; j<integers_per_page; ++j) {
             int input2 = charToInt(input2_data, j*sizeof(int));
+            if (input2 == INT_MIN) break;
             if (input1 == input2) { // write input1 on output page
+                if (join_exists == false) {
+                    // creating the first page since join has some result
+                    output_page_handler = output_handler.NewPage();
+                }
+                join_exists = true;
                 if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
                     output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
                     output_page_handler = output_handler.NewPage();	// pinned and dirty

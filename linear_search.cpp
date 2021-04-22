@@ -22,11 +22,22 @@ int getSearchValue(const string &line) {
     return stoi(number);
 }
 
-const char *input_file_path = "./TestCases/TC_search/sorted_input";
-const char *query_file_path = "./TestCases/TC_search/query_search.txt";
-const char *output_file_path = "./output_search"; // create output in pwd
+char *input_file_path;
+char *query_file_path;
+char *output_file_path; // create output in pwd
 int MINUS_ONE = -1;
 int int_min = INT_MIN;
+
+void updateFilePaths(int argc, char **argv) {
+    /* This file updates file paths using command line arguments */
+    if (argc != 4) {
+        cout << "ERROR: command line arguments expected\n";
+        exit(0);
+    }
+    input_file_path = argv[1];
+    query_file_path = argv[2];
+    output_file_path = argv[3];
+}
 
 int getLastPageNumber(FileHandler &fh, bool keep_pinned=false) {
     /*
@@ -91,8 +102,8 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
     cout << endl;
 }
 
-int main() {
-
+int main(int argc, char **argv) {
+    updateFilePaths(argc, argv);
     int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
     FileManager fm;
     FileHandler output_handler = fm.CreateFile(output_file_path);
@@ -136,11 +147,12 @@ int main() {
                         memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &offset, sizeof(int));
                         ++integers_written_on_output_page;
                     }
-                    else if (curr_number != target_number and found_it == true) {
+                    // TODO: remove this else block: input is not sorted
+                    //else if (curr_number != target_number and found_it == true) {
                         // we are done with search. Terminate it.
-                        query_processed = true;
-                        break;
-                    }
+                    //    query_processed = true;
+                    //    break;
+                    //}
                 }
                 // since we are done using the current input page, we can unpin it
                 input_handler.UnpinPage(curr_page_handler.GetPageNum());
