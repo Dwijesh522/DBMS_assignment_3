@@ -11,6 +11,25 @@
 
 using namespace std;
 
+int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+int last_index = PAGE_CONTENT_SIZE - sizeof(int);
+char *input_file_path;
+char *query_file_path;
+int MINUS_ONE = -1;
+int int_min = INT_MIN;
+int last_page = -1;
+
+
+void updateFilePaths(int argc, char **argv) {
+    /* This file updates file paths using command line arguments */
+    if (argc != 3) {
+        cout << "ERROR: command line arguments expected\n";
+        exit(0);
+    }
+    input_file_path = argv[1];
+    query_file_path = argv[2];
+}
+
 int getDeleteValue(const string &line) {
 	/*
 	 *	Given a line read from the search query file of the form:
@@ -23,15 +42,6 @@ int getDeleteValue(const string &line) {
 		number += line[i];
 	return stoi(number);
 }
-
-int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
-int last_index = PAGE_CONTENT_SIZE - sizeof(int);
-const char *input_file_path = "./TestCases/TC_delete/sorted_input";
-const char *query_file_path = "./TestCases/TC_delete/query_delete.txt";
-// const char *output_file_path = "./output_delete"; // create output in pwd
-int MINUS_ONE = -1;
-int int_min = INT_MIN;
-int last_page = -1;
 
 int getLastPageNumber(FileHandler &fh, bool keep_pinned=false) {
 	/*
@@ -309,22 +319,18 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 	cout << endl;
 }
 
-int main() {
-	// cout << sizeof(int) << endl;
+int main(int argc, char **argv) {
+	updateFilePaths(argc, argv);
 	FileManager fm;
 	FileHandler input_handler = fm.OpenFile(input_file_path);
 	PageHandler bin_start_handler;
-	// exit(0);
+
 	// reading query files
 	ifstream query_file (query_file_path);
 	if (query_file.is_open()) {
 		string line;
 		while (getline(query_file, line)) {
-			// char *m_output = "./TestCases/TC_delete/sorted_input";
-			// printAnswers(fm, m_output, "My output");
-
 			int target_number = getDeleteValue(line); // value to search for
-            // cout<<"Target : "<<target_number<<endl;
 			
 			// since the input file is sorted, once processed all target values,
 			// we need not process the remaining values
@@ -373,6 +379,9 @@ int main() {
 					memcpy(&data[write_offset], &int_min, sizeof(int));
 					write_offset += sizeof(int);
 				}
+				input_handler.MarkDirty(write_page_num);
+				input_handler.UnpinPage(write_page_num);
+				input_handler.FlushPage(write_page_num);
 				continue;
 			}
 			else{
@@ -491,7 +500,7 @@ int main() {
 	// cout<<"Exited"<<endl;
 	// char *my_output = "./TestCases/TC_delete/sorted_input";
 	// char *ta_output = "./TestCases/TC_delete/output_delete";
-	// printAnswers(fm, my_output, "My output");
+	printAnswers(fm, input_file_path, "My output");
 	// printAnswers(fm, ta_output, "TA output");
 	
 	// #TODO: following lines are only for debugging. Remove it in final submission
