@@ -7,7 +7,7 @@ linear_search_objects = buffer_manager.o file_manager.o linear_search.o
 binary_search_objects = buffer_manager.o file_manager.o binary_search.o
 join1_objects = buffer_manager.o file_manager.o join1.o
 join2_objects = buffer_manager.o file_manager.o join2.o
-delete_objects = buffer_manager.o file_manager.o binary_search_del.o delete.o
+delete_objects = buffer_manager.o file_manager.o delete.o
 
 linearsearch : $(linear_search_objects)
 	g++ -std=c++11 -o linearsearch $(linear_search_objects)
