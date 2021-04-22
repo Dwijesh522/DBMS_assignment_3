@@ -11,13 +11,13 @@
 using namespace std;
 
 // global variables
-const char *input1_file_path = "./TestCases/TC_join2/input2_join2";
-const char *input2_file_path = "./TestCases/TC_join2/input1_join2";
+const char *input1_file_path = "./TestCases/TC_join2/input1_join2";
+const char *input2_file_path = "./TestCases/TC_join2/input2_join2_updated";
 const char *output_file_path = "./output_join2"; // create output in pwd
 int MINUS_ONE = -1;
 int int_min = INT_MIN;
 int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
-int last_index = PAGE_CONTENT_SIZE - sizeof(int);
+int last_index = sizeof(int)*(integers_per_page-1);
 
 // declarations
 int getLastPageNumber(FileHandler &fh, bool keep_pinned);
@@ -32,6 +32,40 @@ inline int charToInt(char *array, int offset) {
     memcpy(&data, &array[offset], sizeof(int));
     return data;
 }
+
+void printAnswers(FileManager &fm, char *file_path, string title) {
+	/*
+	 *	This function prints all integers stored in the file in pairs
+	 *	This function is mainly written for matching our answer with
+	 *	ground truth answer provided by TAs. Call this funtion on both
+	 *	files one after another and check correctness manually.
+	 */
+	cout << endl << title << endl;
+	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+	FileHandler file_handler = fm.OpenFile(file_path);
+	int last_page_num = getLastPageNumber(file_handler, /*keep pinned*/ false);
+	PageHandler page_handler = file_handler.FirstPage(); // pinned
+
+	while (true) {
+		char *data = page_handler.GetData();
+		cout << "page number: " << page_handler.GetPageNum() << ": ";
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+			// read two integers in pair starting from location i
+			int first_num, sec_num;
+			memcpy(&first_num, &data[i], sizeof(int));
+			memcpy(&sec_num, &data[i+sizeof(int)], sizeof(int));
+			cout << "(" << first_num <<", " << sec_num << ") ";
+		}
+		if (page_handler.GetPageNum() == last_page_num) break;
+		file_handler.UnpinPage(page_handler.GetPageNum()); // unpinned
+		page_handler = file_handler.NextPage(page_handler.GetPageNum()); // pinned
+		cout << endl;
+	}
+	file_handler.UnpinPage(page_handler.GetPageNum());
+	fm.CloseFile(file_handler);
+	cout << endl;
+}
+
 
 vector<int> binary_search_start(int target_number, FileHandler &input_handler){
 
@@ -83,21 +117,21 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
 
         if(curr_number_top < target_number){
             // not found yet
-            if (curr_number_bottom < target_number){
+            if (curr_number_bottom < target_number && curr_number_bottom>INT_MIN){
                 // if already go_bwd then stop bwd search
                 if (go_bwd){ bwd_search_done = true;}
                 // update top_pg for binary search
                 else {top_pg = curr_page_number+1;}
             }
             // Found the start
-            else if(curr_number_bottom >= target_number){
+            else if(curr_number_bottom >= target_number || curr_number_bottom==INT_MIN){
                 answer[0] = curr_page_number;
                 // Found the index page - now just go up and down in directory from this page
                 if(index_page_number<0)
                     index_page_number = curr_page_number;
                 go_bwd = true, bwd_search_done = true; /* no need to check pages before as curr_number_top < target_number */
                 bool found_it = false;
-                for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
+                for (int i=0; i<=last_index; i+= sizeof(int)) {
                     // traversing from the last entry of the page to first entry
                     int curr_number;
                     memcpy(&curr_number, &data[i], sizeof(int));
@@ -105,14 +139,14 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
                         found_it = true;
                         // store (page num, offset) into the output file page
                         int offset = i/sizeof(int);
-                        // cout<<"Page numb: "<<curr_page_number<<" at "<<offset<< " val = "<< curr_number<<endl;
                         //update start point
                         answer[1] = offset;
-                    }
-                    else if (curr_number != target_number && found_it) {
-                        bwd_search_done = true;
                         break;
                     }
+                    /*else if (curr_number != target_number && found_it) {
+                        bwd_search_done = true;
+                        break;
+                    }*/
                 }
             }
         }
@@ -136,8 +170,8 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
         // Done all search up and down
         if (bwd_search_done) break;
     }
-    if (answer[0]==INT_MAX) {answer[0] = -1;}
-    cout<<"Page, off = "<<answer[0]<<", "<<answer[1]<<endl;
+    if (answer[0]==INT_MAX || answer[1]==INT_MAX) {answer[0] = -1;}
+//    cout<<"Page, off = "<<answer[0]<<", "<<answer[1]<<endl;
 	return answer;
 }
 
@@ -160,7 +194,8 @@ int main() {
         char *input1_data = input1_page_handler.GetData();
         // loop in the page from top to bottom
         for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
-            int input1 = charToInt(input1_data, i*sizeof(int));
+            int input1 = charToInt(input1_data, i);
+            if(input1==INT_MIN) continue;
             // page_number, offset of the earliest occurrence of input1 in input2
             cout<<"Target: "<<input1<<endl;
             vector<int> start_addr = binary_search_start(input1, input2_handler);
@@ -212,10 +247,16 @@ int main() {
     fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
 	output_handler.FlushPages(); // flush all pages since we are done
 	fm.CloseFile (output_handler);
-    fm.CloseFile(input1_handler);
-    fm.CloseFile(input2_handler);
 
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
+    char *in1_output = "./TestCases/TC_join2/input1_join2";
+    char *in2_output = "./TestCases/TC_join2/input2_join2_updated";
+    char *my_output = "./output_join2";
+    char *ta_output = "./TestCases/TC_join2/output_join2";
+//    printAnswers(fm, in1_output, "Input1 output");
+//	printAnswers(fm, in2_output, "Input2 output");
+//	printAnswers(fm, my_output, "My Output");
+//	printAnswers(fm, ta_output, "Ta output");
 	return 0;
 }
 
@@ -293,7 +334,7 @@ vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
 
 	while (true) {
 		char *data = page_handler.GetData();
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
 			// read two integers in pair starting from location i
 			int first_num, sec_num;
 			memcpy(&first_num, &data[i], sizeof(int));
