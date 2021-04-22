@@ -4,7 +4,7 @@
 #define CONSTANTS_H
 
 // fix buffer size 
-const int BUFFER_SIZE=40;
+const int BUFFER_SIZE=3;
 
 // constants relation to page
 
