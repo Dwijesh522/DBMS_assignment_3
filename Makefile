@@ -8,6 +8,7 @@ binary_search_objects = buffer_manager.o file_manager.o binary_search.o
 join1_objects = buffer_manager.o file_manager.o join1.o
 join2_objects = buffer_manager.o file_manager.o join2.o
 delete_objects = buffer_manager.o file_manager.o delete.o
+testcase_objects = buffer_manager.o file_manager.o test_case_generation.o
 
 linearsearch : $(linear_search_objects)
 	g++ -std=c++11 -o linearsearch $(linear_search_objects)
@@ -26,6 +27,9 @@ samplerun : $(sampleobjects)
 
 deletion : $(delete_objects)
 	g++ -std=c++11 -o deletion $(delete_objects)
+
+testcase : $(testcase_objects)
+	g++ -std=c++11 -o test_case_generation $(testcase_objects)
 
 
 sample_run.o : sample_run.cpp
@@ -49,6 +53,9 @@ join2.o : join2.cpp
 delete.o : delete.cpp
 	g++ -std=c++11 -c delete.cpp
 
+test_case_generation.o : test_case_generation.cpp
+	g++ -std=c++11 -c test_case_generation.cpp
+
 buffer_manager.o : buffer_manager.cpp
 	g++ -std=c++11 -c buffer_manager.cpp
 
@@ -63,3 +70,10 @@ clean :
 	rm -f join2
 	rm -f binarysearch
 	rm -f deletion
+	rm -f test_case_generation
+	rm -f test_file1
+	rm -f test_file2
+	rm -f test_file3
+	rm -f test_file4
+	rm -f testcase_delete.txt
+	rm -f testcase_search.txt
