@@ -6,7 +6,8 @@
 #include <cstring>
 #include <fstream>
 #include <climits>
-
+#include <vector>
+#include <algorithm>
 using namespace std;
 
 int getSearchValue(const string &line) {
@@ -57,6 +58,75 @@ PageHandler getPageHandler(FileHandler &fh, int page_number, bool keep_pinned=fa
 	return page_handler;
 }
 
+vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
+	/*
+	 *	This function returns all integers stored in the file
+	 *	This function is mainly written for matching our answer with
+	 *	ground truth answer provided by TAs.
+	 */
+    vector<int> answers;
+	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
+	FileHandler file_handler = fm.OpenFile(file_path);
+	int last_page_num = getLastPageNumber(file_handler, /*keep pinned*/ false);
+	PageHandler page_handler = file_handler.FirstPage(); // pinned
+
+	while (true) {
+		char *data = page_handler.GetData();
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
+			// read two integers in pair starting from location i
+			int first_num, sec_num;
+			memcpy(&first_num, &data[i], sizeof(int));
+			memcpy(&sec_num, &data[i+sizeof(int)], sizeof(int));
+		    answers.push_back(first_num);
+            answers.push_back(sec_num);
+        }
+		if (page_handler.GetPageNum() == last_page_num) break;
+		file_handler.UnpinPage(page_handler.GetPageNum()); // unpinned
+		page_handler = file_handler.NextPage(page_handler.GetPageNum()); // pinned
+	}
+	file_handler.UnpinPage(page_handler.GetPageNum());
+	fm.CloseFile(file_handler);
+
+    return answers;
+}
+
+void printVector(const vector<int> &v, const string &title) {
+    /* prints vector v on STDOUt */
+    cout << title << endl;
+    int size = v.size();
+    for (int i=0; i<size; ++i)
+        cout << v[i] << ", ";
+    cout << endl << endl;
+}
+
+void validateAnswers(FileManager &fm) {
+    /*
+        This function gets our answer and TA's answer in vector form.
+        It then sorts it and sees if corresponding entries are same or not.
+        Ideally after sorting, corresponding entries mush match.
+    */
+	char *my_output = "./output_search";
+	char *ta_output = "./TestCases/TC_search/output_search";
+	vector<int> my_answers = getAnswers(fm, my_output, "My output");
+	vector<int> ta_answers = getAnswers(fm, ta_output, "TA output");
+    int size = my_answers.size();
+    sort(&my_answers[0], (&my_answers[0]) + size);
+    sort(&ta_answers[0], (&ta_answers[0]) + size);
+    printVector(my_answers, "my answers");
+    printVector(ta_answers, "ta answers");
+    bool correct = true;
+    for (int i=0; i<size; ++i) {
+        if (my_answers[i] != ta_answers[i] && my_answers[i]>INT_MIN) {
+            cout << "ERROR: answer mismatch\n";
+            cout << "your answer: " << my_answers[i] << endl;
+            cout << "TA's answer: " << ta_answers[i] << endl;
+            correct = false;
+        }
+    }
+    if (correct)    cout << "Your answer is correct !!\n";
+    else cout << "Your answer has some mismatches !!\n";
+}
+
 void printAnswers(FileManager &fm, char *file_path, string title) {
 	/*
 	 *	This function prints all integers stored in the file in pairs
@@ -73,7 +143,7 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 	while (true) {
 		char *data = page_handler.GetData();
 		cout << "page number: " << page_handler.GetPageNum() << ": ";
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
 			// read two integers in pair starting from location i
 			int first_num, sec_num;
 			memcpy(&first_num, &data[i], sizeof(int));
@@ -91,12 +161,10 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 }
 
 int main() {
-
 	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
 	int last_index = PAGE_CONTENT_SIZE - sizeof(int);
 	FileManager fm;
 	FileHandler output_handler = fm.CreateFile(output_file_path);
-    FileHandler input_handler = fm.OpenFile(input_file_path);
 	// by default following page is pinned and marked dirty
 	PageHandler output_page_handler = output_handler.NewPage();
 	int integers_written_on_output_page = 0;
@@ -111,6 +179,7 @@ int main() {
 			// we need not process the remaining values
 			bool go_fwd = false, go_bwd = false, query_processed = false;
 			bool bwd_search_done = false, fwd_search_done = false;
+			FileHandler input_handler = fm.OpenFile(input_file_path);
             int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
 			int top_pg = 0;
 			int bottom_pg = total_pages;
@@ -165,26 +234,25 @@ int main() {
 
 				if(curr_number_top < target_number){
                     // not found yet
-				    if (curr_number_bottom < target_number){
+				    if (curr_number_bottom>INT_MIN && curr_number_bottom < target_number){
 				        // if already go_bwd then stop bwd search
 				        if (go_bwd){ bwd_search_done = true;}
 				        // update top_pg for binary search
 				        else {top_pg = curr_page_number+1;}
 				    }
                     // Found the start
-				    else if(curr_number_bottom >= target_number){
+				    else if(curr_number_bottom >= target_number || curr_number_bottom==INT_MIN){
 
 				        // Found the index page - now just go up and down in directory from this page
 				        if(index_page_number<0)
 				            index_page_number = curr_page_number;
 				        go_bwd = true, bwd_search_done = true; /* no need to check pages before as curr_number_top < target_number */
 				        go_fwd = true;
-
-                        for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
+                        bool found_it = false;
+                        for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
                             // traversing from the last entry of the page to first entry
                             int curr_number;
                             memcpy(&curr_number, &data[i], sizeof(int));
-                            bool found_it = false;
                             if (curr_number == target_number) {
                                 found_it = true;
                                 // store (page num, offset) into the output file page
@@ -193,7 +261,7 @@ int main() {
 
                                 if (integers_written_on_output_page >= integers_per_page) {
                                     output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
-                                    output_handler.FlushPages(); // write otuput page to disk and remove from buffer
+                                    output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
                                     output_page_handler = output_handler.NewPage();	// create new output page in buffer
                                     integers_written_on_output_page = 0; // new page is empty
                                 }
@@ -205,6 +273,7 @@ int main() {
                             }
                             else if (curr_number != target_number && found_it) {
                                 fwd_search_done = true;  /* no need to search next pages */
+                                break;
                             }
                         }
 				    }
@@ -218,11 +287,11 @@ int main() {
                     go_fwd = true;
 
                     /* search within the page */
-                    for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
+                    bool found_it = false;
+                    for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
                         // traversing from the last entry of the page to first entry
                         int curr_number;
                         memcpy(&curr_number, &data[i], sizeof(int));
-                        bool found_it = false;
                         if (curr_number == target_number) {
                             found_it = true;
                             // store (page num, offset) into the output file page
@@ -231,7 +300,7 @@ int main() {
 
                             if (integers_written_on_output_page >= integers_per_page) {
                                 output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
-                                output_handler.FlushPages(); // write otuput page to disk and remove from buffer
+                                output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
                                 output_page_handler = output_handler.NewPage();	// create new output page in buffer
                                 integers_written_on_output_page = 0; // new page is empty
                             }
@@ -243,7 +312,8 @@ int main() {
                         }
                         else if (curr_number != target_number && found_it) {
                             // we are done with fwd search.
-                            fwd_search_done = true;
+                            fwd_search_done = true;  /* no need to search next pages */
+                            break;
                         }
                     }
 				}
@@ -261,13 +331,14 @@ int main() {
 				if (fwd_search_done && bwd_search_done) break;
 			}
 
+			fm.CloseFile(input_handler);
 			// Since we are done with one query, writing (-1, -1) pair in output page
 			if (integers_written_on_output_page >= integers_per_page) {
-				output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
-				output_handler.FlushPages(); // write otuput page to disk and remove from buffer
-				output_page_handler = output_handler.NewPage();	// create new output page in buffer
-				integers_written_on_output_page = 0; // new page is empty
-			}
+                output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
+                output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
+                output_page_handler = output_handler.NewPage();	// create new output page in buffer
+                integers_written_on_output_page = 0; // new page is empty
+            }
 			char *output_data = output_page_handler.GetData();
 			memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &MINUS_ONE, sizeof(int));
 			++integers_written_on_output_page;
@@ -289,12 +360,15 @@ int main() {
 	output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
 	output_handler.FlushPages(); // flush output pages
 	fm.CloseFile (output_handler);
-	fm.CloseFile(input_handler);
 
 	// #TODO: following lines are only for debugging. Remove it in final submission
 	char *my_output = "./output_search";
 	char *ta_output = "./TestCases/TC_search/output_search";
-	printAnswers(fm, my_output, "My output");
-	printAnswers(fm, ta_output, "TA output");
+	char *input = "./TestCases/TC_search/sorted_input";
+    //	validateAnswers(fm);
+    //	printAnswers(fm, my_output, "My output");char *ta_output = "./TestCases/TC_search/output_search";
+	validateAnswers(fm);
+    //	printAnswers(fm, my_output, "My output");
+	printAnswers(fm, input, "input");
 	return 0;
 }
