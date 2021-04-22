@@ -87,9 +87,11 @@ PageHandler getPageHandler(FileHandler &fh, int page_number, bool keep_pinned=fa
 }
 
 PageHandler getMidPageHandler(FileHandler &fh){
-	int last_pg_num = getLastPageNumber(fh,false);
-	last_page = last_pg_num;
-	int mid_num = last_pg_num/2;
+	if (last_page == -1){
+		int last_pg_num = getLastPageNumber(fh,false);
+		last_page = last_pg_num;
+	}
+	int mid_num = last_page/2;
 	PageHandler mid_page_handler = getPageHandler(fh, mid_num, true);
 	return mid_page_handler;
 }
@@ -104,10 +106,10 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
     // we need not process the remaining values
     bool go_fwd = false, go_bwd = false, query_processed = false;
     bool bwd_search_done = false, fwd_search_done = false;
-    int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
+    int total_pages = last_page;//getLastPageNumber(input_handler, /*keep pinned*/ false);
 //    cout<<total_pages<<endl;
     int top_pg = 0;
-    int bottom_pg = total_pages;
+    int bottom_pg = last_page;
     int curr_page_number;
     // Page found by binary search
     int index_page_number=-1;
@@ -364,6 +366,7 @@ int main(int argc, char **argv) {
 					if (write_offset == 0 && val == int_min){ // Whole page is going to be INT_MIN only!
 						input_handler.DisposePage(write_page_num);
 						input_handler.FlushPage(write_page_num);
+						last_page--;
 						continue;
 					}
 					while (val != int_min){ //Shifting the data
@@ -421,6 +424,7 @@ int main(int argc, char **argv) {
 						while (rd_pg_num != write_page_num){
 							input_handler.DisposePage(rd_pg_num);
 							input_handler.FlushPage(rd_pg_num);
+							last_page--;
 							rd_pg_num--;
 							if (rd_pg_num != write_page_num)
 								last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
@@ -479,6 +483,7 @@ int main(int argc, char **argv) {
 								input_handler.DisposePage(rd_pg_num);
 								input_handler.FlushPage(rd_pg_num);
 								rd_pg_num--;
+								last_page--;
 							}
 						}
 						else{ //Remaining spots left are full pages and we can delete them directly.
@@ -486,6 +491,7 @@ int main(int argc, char **argv) {
 								input_handler.DisposePage(rd_pg_num);
 								input_handler.FlushPage(rd_pg_num);
 								rd_pg_num--;
+								last_page--;
 							}
 						}
 					}
