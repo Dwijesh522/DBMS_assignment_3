@@ -72,7 +72,7 @@ vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
 
 	while (true) {
 		char *data = page_handler.GetData();
-		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= sizeof(int)) {
+		for (int i=0; i<=(integers_per_page-2)*sizeof(int); i+= 2*sizeof(int)) {
 			// read two integers in pair starting from location i
 			int first_num, sec_num;
 			memcpy(&first_num, &data[i], sizeof(int));
@@ -105,8 +105,8 @@ void validateAnswers(FileManager &fm) {
         It then sorts it and sees if corresponding entries are same or not.
         Ideally after sorting, corresponding entries mush match.
     */
-	char *my_output = "./output_search";
-	char *ta_output = "./TestCases/TC_search/output_search";
+	char *my_output = "./output_join2";
+	char *ta_output = "./TestCases/TC_join2/output_join2";
 	vector<int> my_answers = getAnswers(fm, my_output, "My output");
 	vector<int> ta_answers = getAnswers(fm, ta_output, "TA output");
     int size = my_answers.size();
@@ -116,7 +116,7 @@ void validateAnswers(FileManager &fm) {
     printVector(ta_answers, "ta answers");
     bool correct = true;
     for (int i=0; i<size; ++i) {
-        if (my_answers[i] != ta_answers[i] && my_answers[i]>INT_MIN) {
+        if (my_answers[i] != ta_answers[i]) {
             cout << "ERROR: answer mismatch\n";
             cout << "your answer: " << my_answers[i] << endl;
             cout << "TA's answer: " << ta_answers[i] << endl;
@@ -369,6 +369,6 @@ int main() {
     //	printAnswers(fm, my_output, "My output");char *ta_output = "./TestCases/TC_search/output_search";
 	validateAnswers(fm);
     //	printAnswers(fm, my_output, "My output");
-	printAnswers(fm, input, "input");
+    //  printAnswers(fm, input, "input");
 	return 0;
 }
