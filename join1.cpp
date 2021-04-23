@@ -4,6 +4,7 @@
 #include <cstring>
 #include <fstream>
 #include <climits>
+#include <exception>
 
 #include <vector> // only used for debugging purpose
 #include <algorithm> // only used for debugging purpose (sort)
@@ -20,6 +21,7 @@ int int_min = INT_MIN;
 // declarations
 int getLastPageNumber(FileHandler &fh, bool keep_pinned);
 PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned);
+PageHandler getFirstPageHandler(FileHandler &fh, bool keep_pinned);
 void fillWithIntMin(PageHandler &ph, const int &integers_per_page, int &integers_written_on_output_page);
 void validateAnswers(FileManager &fm);
 void linearSearch(const int &integers_per_page, char *input1_data, char *input2_data, FileHandler &output_handler, 
@@ -35,33 +37,51 @@ int main(int argc, char **argv) {
     PageHandler output_page_handler;
     int integers_written_on_output_page = 0;
 
-    FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
-    FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
-    PageHandler input1_page_handler = getLastPageHandler(input1_handler, /*keep pinned*/true); // pinned
-    while (true) { // traversing from back
-        char *input1_data = input1_page_handler.GetData();
-        PageHandler input2_page_handler = getLastPageHandler(input2_handler, /*keep_pinned*/false); // unpinned
-        while( true ) { // traversing from back
+    try {
+        FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
+        FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
+        PageHandler input1_page_handler = getLastPageHandler(input1_handler, /*keep pinned*/true); // pinned
+        int input2_last_page_number = getLastPageNumber(input2_handler, /*keep pinned*/false);// unpinned
+        int counter = 0; // even for backward traversal and odd for forward traversal
+        while (true) { // traversing from back
+            char *input1_data = input1_page_handler.GetData();
+            PageHandler input2_page_handler;
+            if (counter %2 == 0)
+                input2_page_handler = getLastPageHandler(input2_handler, /*keep_pinned*/false); // unpinned
+            else
+                input2_page_handler = getFirstPageHandler(input2_handler, /*keep_pinned*/false); // unpinned
+            
+            while( true ) { // traversing from back
 
-            char *input2_data = input2_page_handler.GetData();
-            linearSearch(/*passed by value*/integers_per_page, input1_data, input2_data, output_handler, 
-                        /*passed by ref*/output_page_handler, integers_written_on_output_page, join_exists);
+                char *input2_data = input2_page_handler.GetData();
+                linearSearch(/*passed by value*/integers_per_page, input1_data, input2_data, output_handler, 
+                            /*passed by ref*/output_page_handler, integers_written_on_output_page, join_exists);
 
-            if (input2_page_handler.GetPageNum() == 0) break; // finished reading input2 file
-            input2_page_handler = input2_handler.PrevPage(input2_page_handler.GetPageNum()); // pinned
-            input2_handler.UnpinPage(input2_page_handler.GetPageNum()); // unpinned
+                if (input2_page_handler.GetPageNum() == 0 && counter % 2==0) break; // finished reading input2 file
+                if (input2_page_handler.GetPageNum() == input2_last_page_number && counter % 2==1) break; // finished reading input2 file
+                if (counter %2 == 0)
+                    input2_page_handler = input2_handler.PrevPage(input2_page_handler.GetPageNum()); // pinned
+                else
+                    input2_page_handler = input2_handler.NextPage(input2_page_handler.GetPageNum()); // pinned
+                input2_handler.UnpinPage(input2_page_handler.GetPageNum()); // unpinned
+            }
+
+            if (input1_page_handler.GetPageNum() == 0) break;
+            input1_handler.FlushPage(input1_page_handler.GetPageNum()); // will page get flushed even if pinned ??
+            input1_page_handler = input1_handler.PrevPage(input1_page_handler.GetPageNum()); // bringing input1 page in buffer
+            ++counter;
         }
 
-        if (input1_page_handler.GetPageNum() == 0) break;
-        input1_handler.FlushPage(input1_page_handler.GetPageNum()); // will page get flushed even if pinned ??
-        input1_page_handler = input1_handler.PrevPage(input1_page_handler.GetPageNum()); // bringing input1 page in buffer
+        if (join_exists) fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
+        output_handler.FlushPages(); // flush all pages since we are done
+        fm.CloseFile(input1_handler);
+        fm.CloseFile(input2_handler);
+    } catch (const char * error) {
+        cout << error << endl;
+    } catch (exception &e) {
+        cout << e.what() << endl;
     }
-
-    if (join_exists) fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
-    output_handler.FlushPages(); // flush all pages since we are done
     fm.CloseFile (output_handler);
-    fm.CloseFile(input1_handler);
-    fm.CloseFile(input2_handler);
 
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
     return 0;
@@ -95,6 +115,9 @@ void linearSearch(const int &integers_per_page, char *input1_data, char *input2_
         it and create a new page. Therefore last two parameters can be updated by this function.
         This function implements line-3, 4, 5, 6 of join1 algorithm-4 as mentioned in assignment pdf.
     */
+    if (input1_data == nullptr or input2_data == nullptr) {
+        throw "Exception: One of the input file data is emtpy. So output file will also be emtpy";
+    }
     for (int i=0; i<integers_per_page; ++i) {
         int input1 = charToInt(input1_data, i*sizeof(int));
         if (input1 == INT_MIN) break;
@@ -163,6 +186,20 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
     return last_page_handler;
 }
 
+PageHandler getFirstPageHandler(FileHandler &fh, bool keep_pinned=false) {
+    /*
+     *	When we call fh.LastPage().getPageNum(), it brings the last page
+     *	into memory if not already in memory. By default it is pinned.
+     *	Inputs:
+     *		fh : file handler from wich to find the page number of last page
+     *		keep_pinned : whether to keep the last page pinned or not
+     *	Outputs: pagehandler of the last page
+     */
+    PageHandler first_page_handler = fh.FirstPage();
+    int page_number = first_page_handler.GetPageNum();
+    if (not keep_pinned)	fh.UnpinPage(page_number);
+    return first_page_handler;
+}
 vector<int> getAnswers(FileManager &fm, char *file_path, string title) {
     /*
      *	This function returns all integers stored in the file

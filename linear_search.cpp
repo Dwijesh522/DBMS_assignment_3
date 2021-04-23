@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fstream>
 #include <climits>
+#include <exception>
 
 using namespace std;
 
@@ -69,6 +70,20 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned=false) {
     return last_page_handler;
 }
 
+PageHandler getFirstPageHandler(FileHandler &fh, bool keep_pinned=false) {
+    /*
+     *	When we call fh.LastPage().getPageNum(), it brings the last page
+     *	into memory if not already in memory. By default it is pinned.
+     *	Inputs:
+     *		fh : file handler from wich to find the page number of last page
+     *		keep_pinned : whether to keep the last page pinned or not
+     *	Outputs: pagehandler of the last page
+     */
+    PageHandler first_page_handler = fh.FirstPage();
+    int page_number = first_page_handler.GetPageNum();
+    if (not keep_pinned)	fh.UnpinPage(page_number);
+    return first_page_handler;
+}
 void printAnswers(FileManager &fm, char *file_path, string title) {
     /*
      *	This function prints all integers stored in the file in pairs
@@ -115,53 +130,59 @@ int main(int argc, char **argv) {
     ifstream query_file (query_file_path);
     if (query_file.is_open()) {
         string line;
+        int counter = 0; // even counter for backward traversal, odd counter for forward traversal
+        int input_last_page_number = getLastPageNumber(input_handler, /*keep pinned*/true);
         while (getline(query_file, line)) {
             int target_number = getSearchValue(line); // value to search for
 
             // since the input file is sorted, once processed all target values,
             // we need not process the remaining values
             bool found_it = false, query_processed = false;
-            PageHandler curr_page_handler = getLastPageHandler(input_handler, /*keep_pinned*/true);
 
             // Looping from last page to first page
-            while (true) {
-                char *data = curr_page_handler.GetData();
-                for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
-                    // traversing from the last entry of the page to first entry
-                    int curr_number;
-                    memcpy(&curr_number, &data[i], sizeof(int));
-                    if (curr_number == target_number) {
-                        found_it = true;
-                        // store (page num, offset) into the output file page
-                        int curr_page_number = curr_page_handler.GetPageNum();
-                        int offset = i/sizeof(int);
-                        if (integers_written_on_output_page >= integers_per_page) {
-                            output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
-                            output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
-                            output_page_handler = output_handler.NewPage();	// create new output page in buffer
-                            integers_written_on_output_page = 0; // new page is empty
+            try {
+                PageHandler curr_page_handler;
+                if (counter %2 == 0) curr_page_handler = getLastPageHandler(input_handler, /*keep_pinned*/true);
+                else curr_page_handler = getFirstPageHandler(input_handler, /*keep_pinned*/true);
+                while (true) {
+                    char *data = curr_page_handler.GetData();
+                    if (data == nullptr) throw "EmptyFileException: Input file no pages\n";
+                    for (int i=sizeof(int)*(integers_per_page-1); i>= 0; i-= sizeof(int)) {
+                        // traversing from the last entry of the page to first entry
+                        int curr_number;
+                        memcpy(&curr_number, &data[i], sizeof(int));
+                        if (curr_number == target_number) {
+                            found_it = true;
+                            // store (page num, offset) into the output file page
+                            int curr_page_number = curr_page_handler.GetPageNum();
+                            int offset = i/sizeof(int);
+                            if (integers_written_on_output_page >= integers_per_page) {
+                                output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
+                                output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
+                                output_page_handler = output_handler.NewPage();	// create new output page in buffer
+                                integers_written_on_output_page = 0; // new page is empty
+                            }
+                            char *output_data = output_page_handler.GetData();
+                            memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &curr_page_number, sizeof(int));
+                            ++integers_written_on_output_page;
+                            memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &offset, sizeof(int));
+                            ++integers_written_on_output_page;
                         }
-                        char *output_data = output_page_handler.GetData();
-                        memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &curr_page_number, sizeof(int));
-                        ++integers_written_on_output_page;
-                        memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &offset, sizeof(int));
-                        ++integers_written_on_output_page;
                     }
-                    // TODO: remove this else block: input is not sorted
-                    //else if (curr_number != target_number and found_it == true) {
-                        // we are done with search. Terminate it.
-                    //    query_processed = true;
-                    //    break;
-                    //}
+                    // since we are done using the current input page, we can unpin it
+                    if (query_processed) break;
+                    if (curr_page_handler.GetPageNum() == 0 and counter %2 == 0) break; // termination for backward traversal
+                    if (curr_page_handler.GetPageNum() == input_last_page_number and counter %2 == 1) break; // termination for forward traversal
+                    input_handler.UnpinPage(curr_page_handler.GetPageNum());
+                    if (counter %2 == 0) curr_page_handler = input_handler.PrevPage(curr_page_handler.GetPageNum()); // pinned
+                    else curr_page_handler = input_handler.NextPage(curr_page_handler.GetPageNum()); // pinned
                 }
-                // since we are done using the current input page, we can unpin it
-                input_handler.UnpinPage(curr_page_handler.GetPageNum());
-                if (query_processed) break;
-                if (curr_page_handler.GetPageNum() == 0) break; // we are done processing all input pages
-                curr_page_handler = input_handler.PrevPage(curr_page_handler.GetPageNum()); // by default pinned
+//                input_handler.UnpinPage(curr_page_handler.GetPageNum());// so that it can be replaced
             }
+            catch (exception &e) { cout << e.what() << endl; }
+            catch (const char *e) { cout << e << endl; }
+            catch (...) { cout << "Unknown exception occured\n"; }
 
-            input_handler.UnpinPage(curr_page_handler.GetPageNum());// so that it can be replaced
             // Since we are done with one query, writing (-1, -1) pair in output page
             if (integers_written_on_output_page >= integers_per_page) {
                 output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
@@ -174,7 +195,7 @@ int main(int argc, char **argv) {
             ++integers_written_on_output_page;
             memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &MINUS_ONE, sizeof(int));
             ++integers_written_on_output_page;
-
+            ++counter;
             //break; // #TODO: remove this line for processing all queries
         }
         // fill the empty space with int_min
