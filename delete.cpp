@@ -1,5 +1,5 @@
 //Sample file for students to get their code running
-
+//Lat page initialized to -2
 #include <iostream>
 #include "file_manager.h"
 #include "errors.h"
@@ -7,7 +7,6 @@
 #include <fstream>
 #include <climits>
 #include <vector>
-// #include "binary_search_del.cpp"
 
 using namespace std;
 
@@ -88,9 +87,11 @@ PageHandler getPageHandler(FileHandler &fh, int page_number, bool keep_pinned=fa
 }
 
 PageHandler getMidPageHandler(FileHandler &fh){
-	int last_pg_num = getLastPageNumber(fh,false);
-	last_page = last_pg_num;
-	int mid_num = last_pg_num/2;
+	if (last_page == -1){
+		int last_pg_num = getLastPageNumber(fh,false);
+		last_page = last_pg_num;
+	}
+	int mid_num = last_page/2;
 	PageHandler mid_page_handler = getPageHandler(fh, mid_num, true);
 	return mid_page_handler;
 }
@@ -105,10 +106,10 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
     // we need not process the remaining values
     bool go_fwd = false, go_bwd = false, query_processed = false;
     bool bwd_search_done = false, fwd_search_done = false;
-    int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
+    int total_pages = last_page;//getLastPageNumber(input_handler, /*keep pinned*/ false);
 //    cout<<total_pages<<endl;
     int top_pg = 0;
-    int bottom_pg = total_pages;
+    int bottom_pg = last_page;
     int curr_page_number;
     // Page found by binary search
     int index_page_number=-1;
@@ -332,196 +333,196 @@ int main(int argc, char **argv) {
 		while (getline(query_file, line)) {
 			int target_number = getDeleteValue(line); // value to search for
 			
-			// since the input file is sorted, once processed all target values,
-			// we need not process the remaining values
-			bin_start_handler = getMidPageHandler(input_handler);	
-			vector<vector<int> > loc;
-			loc = binary_search(target_number, input_handler, bin_start_handler);
-			// Binary search procedure updates the bin_start_handler to point to the page of first occurence of the integer to be deleted.
-			// cout << loc[0][0] << " " << loc[0][1] << " " << loc[1][0] << " " << loc[1][1] << endl;
-			int write_page_num = loc[0][0];
-			int write_offset = loc[0][1] * sizeof(int);
-			int rd_pg_num = loc[1][0];
-			int rd_offset = (loc[1][1] * sizeof(int)) + sizeof(int);
+			try{
+				// since the input file is sorted, once processed all target values,
+				// we need not process the remaining values
+				bin_start_handler = getMidPageHandler(input_handler);	
+				vector<vector<int> > loc;
+				loc = binary_search(target_number, input_handler, bin_start_handler);
+				// Binary search procedure updates the bin_start_handler to point to the page of first occurence of the integer to be deleted.
+				// cout << loc[0][0] << " " << loc[0][1] << " " << loc[1][0] << " " << loc[1][1] << endl;
+				int write_page_num = loc[0][0];
+				int write_offset = loc[0][1] * sizeof(int);
+				int rd_pg_num = loc[1][0];
+				int rd_offset = (loc[1][1] * sizeof(int)) + sizeof(int);
 
-			if (write_page_num == INT_MAX){
-				// cout << "Number not found!" << endl;
-				continue;
-			}
-
-			bin_start_handler = input_handler.PageAt(loc[0][0]);
-			char *data = bin_start_handler.GetData();
-			// Page where number first occurred is in memory already
-			if (write_page_num == last_page){
-				int val;
-				if (rd_offset < last_index + sizeof(int))
-					memcpy(&val, &data[rd_offset], sizeof(int));
-				else{
-					//If last occurrence is at last offset of the last page. No INT_MIN after that.
-					if (rd_offset == last_index + sizeof(int))
-						val = int_min;
-				}
-				if (write_offset == 0 && val == int_min){ // Whole page is going to be INT_MIN only!
-					input_handler.DisposePage(write_page_num);
-					input_handler.FlushPage(write_page_num);
+				if (write_page_num == INT_MAX){
+					// cout << "Number not found!" << endl;
 					continue;
 				}
-				while (val != int_min){ //Shifting the data
-					memcpy(&data[write_offset], &val, sizeof(int));
-					write_offset += sizeof(int);
-					rd_offset += sizeof(int);
-					if (rd_offset == last_index + sizeof(int)) // If the page is fully filled with distinct data, need to place INT_MIN after page finishes
-						val = int_min;
-					else
+
+				bin_start_handler = input_handler.PageAt(loc[0][0]);
+				char *data = bin_start_handler.GetData();
+				// Page where number first occurred is in memory already
+				if (write_page_num == last_page){
+					int val;
+					if (rd_offset < last_index + sizeof(int))
 						memcpy(&val, &data[rd_offset], sizeof(int));
-				}
-				while(write_offset != rd_offset){ // Fill the remaining spots with int_min.
-					memcpy(&data[write_offset], &int_min, sizeof(int));
-					write_offset += sizeof(int);
-				}
-				input_handler.MarkDirty(write_page_num);
-				input_handler.UnpinPage(write_page_num);
-				input_handler.FlushPage(write_page_num);
-				continue;
-			}
-			else{
-				PageHandler last_occur_pg_handler;
-				char *last_data;
-				int val;
-				if (rd_offset < last_index + sizeof(int)){ // If in middle of some page, then read the data simply!
-					last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
-					last_data = last_occur_pg_handler.GetData();
-					memcpy(&val, &last_data[rd_offset], sizeof(int));
-					// cout << "Start Val is " << val << endl;
-				}
-				else{
-					//If last occurrence is at last offset of the last page. No INT_MIN after that.
-					if (rd_offset == last_index + sizeof(int)){
-						if (rd_pg_num == last_page)
+					else{
+						//If last occurrence is at last offset of the last page. No INT_MIN after that.
+						if (rd_offset == last_index + sizeof(int))
 							val = int_min;
-						else{ // You need to start shifting the data which is at the beginning of the next page
-							rd_pg_num++;
-							last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
-							last_data = last_occur_pg_handler.GetData();
-							rd_offset = 0;
-							memcpy(&val, &last_data[rd_offset], sizeof(int));
-						}
 					}
-				}
-				if (rd_pg_num == last_page && val == int_min){
-					while(write_offset != (last_index + sizeof(int))) { // Fill the remaining spots on the current write page with int_min.
+					if (write_offset == 0 && val == int_min){ // Whole page is going to be INT_MIN only!
+						input_handler.DisposePage(write_page_num);
+						input_handler.FlushPage(write_page_num);
+						last_page--;
+						continue;
+					}
+					while (val != int_min){ //Shifting the data
+						memcpy(&data[write_offset], &val, sizeof(int));
+						write_offset += sizeof(int);
+						rd_offset += sizeof(int);
+						if (rd_offset == last_index + sizeof(int)) // If the page is fully filled with distinct data, need to place INT_MIN after page finishes
+							val = int_min;
+						else
+							memcpy(&val, &data[rd_offset], sizeof(int));
+					}
+					while(write_offset != rd_offset){ // Fill the remaining spots with int_min.
 						memcpy(&data[write_offset], &int_min, sizeof(int));
 						write_offset += sizeof(int);
 					}
-					// Write the changes made to the current page to the disk
 					input_handler.MarkDirty(write_page_num);
 					input_handler.UnpinPage(write_page_num);
 					input_handler.FlushPage(write_page_num);
-					// Dispose all the remaining pages from write page number to read_page_number
-					while (rd_pg_num != write_page_num){
-						input_handler.DisposePage(rd_pg_num);
-						input_handler.FlushPage(rd_pg_num);
-						rd_pg_num--;
-						if (rd_pg_num != write_page_num)
-							last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
-					}
-					input_handler.FlushPages(); // Sanity step: Flush all pages in buffer once my query is done! Can be removed
 					continue;
 				}
 				else{
-					while(val != int_min && (rd_pg_num != last_page || rd_offset != last_index + sizeof(int))) { // Main data copying loop
-						// cout << "First write of " << val << " at offset " << write_offset << " on page number " << write_page_num << endl;
-						memcpy(&data[write_offset], &val, sizeof(int));
-						if (write_offset == last_index){ //If writing to a page complete, proceed to the next page
-							input_handler.MarkDirty(write_page_num);
-							input_handler.UnpinPage(write_page_num);
-							input_handler.FlushPage(write_page_num);
-							write_page_num++;
-							bin_start_handler = input_handler.PageAt(write_page_num);
-							data = bin_start_handler.GetData();
-							write_offset = 0;
-						}
-						else{
-							write_offset += sizeof(int); // Continue writing on same page
-						}
-						if (rd_offset == last_index){
-							if (write_page_num != rd_pg_num){
-								input_handler.UnpinPage(rd_pg_num); //May have to flush page! Review once..
-							}
-							if (rd_pg_num != last_page){ // Advance read head to the next page if one exists.
+					PageHandler last_occur_pg_handler;
+					char *last_data;
+					int val;
+					if (rd_offset < last_index + sizeof(int)){ // If in middle of some page, then read the data simply!
+						last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
+						last_data = last_occur_pg_handler.GetData();
+						memcpy(&val, &last_data[rd_offset], sizeof(int));
+						// cout << "Start Val is " << val << endl;
+					}
+					else{
+						//If last occurrence is at last offset of the last page. No INT_MIN after that.
+						if (rd_offset == last_index + sizeof(int)){
+							if (rd_pg_num == last_page)
+								val = int_min;
+							else{ // You need to start shifting the data which is at the beginning of the next page
 								rd_pg_num++;
 								last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
 								last_data = last_occur_pg_handler.GetData();
 								rd_offset = 0;
-							}
-							else{ // If read head already at end of last page, then just don't move forward. return INT_MIN value.
-								val = int_min;
-								continue;
+								memcpy(&val, &last_data[rd_offset], sizeof(int));
 							}
 						}
-						else{
-							rd_offset += sizeof(int); //Continue reading on the same page
-						}
-						memcpy(&val, &last_data[rd_offset], sizeof(int)); // Read the data into the variable
 					}
-					if (write_offset != 0){ // Write head has space left to write on the current page
-						while(write_offset != last_index + sizeof(int)){ //Fill the remaining space with INT_MIN
+					if (rd_pg_num == last_page && val == int_min){
+						if (write_offset == 0){
+							while(rd_pg_num >= write_page_num){
+								input_handler.DisposePage(rd_pg_num);
+								input_handler.FlushPage(rd_pg_num);
+								rd_pg_num--;
+								last_page--;
+							}
+							continue;
+						}
+						while(write_offset != (last_index + sizeof(int))) { // Fill the remaining spots on the current write page with int_min.
 							memcpy(&data[write_offset], &int_min, sizeof(int));
 							write_offset += sizeof(int);
 						}
-						// Write the changes made to current page in disk
+						// Write the changes made to the current page to the disk
 						input_handler.MarkDirty(write_page_num);
 						input_handler.UnpinPage(write_page_num);
 						input_handler.FlushPage(write_page_num);
-
-						// Dispose any pages left
-						while(rd_pg_num != write_page_num){
+						// Dispose all the remaining pages from write page number to read_page_number
+						while (rd_pg_num != write_page_num){
 							input_handler.DisposePage(rd_pg_num);
 							input_handler.FlushPage(rd_pg_num);
+							last_page--;
 							rd_pg_num--;
+							if (rd_pg_num != write_page_num)
+								last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
 						}
+						input_handler.FlushPages(); // Sanity step: Flush all pages in buffer once my query is done! Can be removed
+						continue;
 					}
-					else{ //Remaining spots left are full pages and we can delete them directly.
-						while(rd_pg_num >= write_page_num){
-							input_handler.DisposePage(rd_pg_num);
-							input_handler.FlushPage(rd_pg_num);
-							rd_pg_num--;
+					else{
+						while(val != int_min && (rd_pg_num != last_page || rd_offset != last_index + sizeof(int))) { // Main data copying loop
+							// cout << "First write of " << val << " at offset " << write_offset << " on page number " << write_page_num << endl;
+							memcpy(&data[write_offset], &val, sizeof(int));
+							if (write_offset == last_index){ //If writing to a page complete, proceed to the next page
+								input_handler.MarkDirty(write_page_num);
+								input_handler.UnpinPage(write_page_num);
+								input_handler.FlushPage(write_page_num);
+								write_page_num++;
+								bin_start_handler = input_handler.PageAt(write_page_num);
+								data = bin_start_handler.GetData();
+								write_offset = 0;
+							}
+							else{
+								write_offset += sizeof(int); // Continue writing on same page
+							}
+							if (rd_offset == last_index){
+								if (write_page_num != rd_pg_num){
+									input_handler.UnpinPage(rd_pg_num); //May have to flush page! Review once..
+								}
+								if (rd_pg_num != last_page){ // Advance read head to the next page if one exists.
+									rd_pg_num++;
+									last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
+									last_data = last_occur_pg_handler.GetData();
+									rd_offset = 0;
+								}
+								else{ // If read head already at end of last page, then just don't move forward. return INT_MIN value.
+									val = int_min;
+									continue;
+								}
+							}
+							else{
+								rd_offset += sizeof(int); //Continue reading on the same page
+							}
+							memcpy(&val, &last_data[rd_offset], sizeof(int)); // Read the data into the variable
+						}
+						if (write_offset != 0){ // Write head has space left to write on the current page
+							while(write_offset != last_index + sizeof(int)){ //Fill the remaining space with INT_MIN
+								memcpy(&data[write_offset], &int_min, sizeof(int));
+								write_offset += sizeof(int);
+							}
+							// Write the changes made to current page in disk
+							input_handler.MarkDirty(write_page_num);
+							input_handler.UnpinPage(write_page_num);
+							input_handler.FlushPage(write_page_num);
+
+							// Dispose any pages left
+							while(rd_pg_num != write_page_num){
+								input_handler.DisposePage(rd_pg_num);
+								input_handler.FlushPage(rd_pg_num);
+								rd_pg_num--;
+								last_page--;
+							}
+						}
+						else{ //Remaining spots left are full pages and we can delete them directly.
+							while(rd_pg_num >= write_page_num){
+								input_handler.DisposePage(rd_pg_num);
+								input_handler.FlushPage(rd_pg_num);
+								rd_pg_num--;
+								last_page--;
+							}
 						}
 					}
 				}
 			}
-		// char *my_output = "./TestCases/TC_delete/sorted_input";
-		// char *ta_output = "./TestCases/TC_delete/output_delete";
-		// printAnswers(fm, my_output, "My output");
-		// printAnswers(fm, ta_output, "TA output");
+			catch(...) {
+				cout << "Oops! Something went wrong. Exception Encountered" << endl;
+				continue;
+			}
+			// char *my_output = "./TestCases/TC_delete/sorted_input";
+			// char *ta_output = "./TestCases/TC_delete/output_delete";
+			// printAnswers(fm, my_output, "My output");
+			// printAnswers(fm, ta_output, "TA output");
 		}
 	}
 	else cout << "Unable to open query file\n";
 	// cout<<"Exited"<<endl;
 	// char *my_output = "./TestCases/TC_delete/sorted_input";
 	// char *ta_output = "./TestCases/TC_delete/output_delete";
+	cout << last_page << endl;
 	printAnswers(fm, input_file_path, "My output");
+	fm.CloseFile(input_handler);
 	// printAnswers(fm, ta_output, "TA output");
-	
-	// #TODO: following lines are only for debugging. Remove it in final submission
 	return 0;
 }
-
-/*
-DELETE 3
-DELETE 20
-DELETE 1000
-DELETE 12
-DELETE 23
-DELETE 20
-DELETE 19
-DELETE 2
-DELETE 5
-DELETE 6
-DELETE 8
-DELETE 10
-DELETE 11
-DELETE 13
-DELETE 15
-DELETE 18
-*/
