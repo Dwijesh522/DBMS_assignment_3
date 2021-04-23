@@ -75,5 +75,6 @@ clean :
 	rm -f test_file2
 	rm -f test_file3
 	rm -f test_file4
+	rm -f test_file5
 	rm -f testcase_delete.txt
 	rm -f testcase_search.txt
