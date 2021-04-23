@@ -155,6 +155,7 @@ int main(int argc, char **argv) {
     fm.CloseFile(test_file3);
     fm.CloseFile(test_file2);
     fm.CloseFile(test_file1);
+    fm.CloseFile(test_file5);
 
     char *file_path1 = "test_file1";
     char *file_path2 = "test_file2";
