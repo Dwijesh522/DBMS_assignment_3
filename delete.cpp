@@ -22,7 +22,7 @@ int last_page = -1;
 void updateFilePaths(int argc, char **argv) {
     /* This file updates file paths using command line arguments */
     if (argc != 3) {
-        cout << "ERROR: command line arguments expected\n";
+        // cout << "ERROR: command line arguments expected\n";
         exit(0);
     }
     input_file_path = argv[1];
@@ -100,14 +100,11 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
 
     vector<vector<int> > answer(2, vector<int>(2,INT_MIN));
     answer[0][0] = INT_MAX, answer[0][1] = INT_MAX;
-
-//    cout<<"Target : "<<target_number<<endl;
     // since the input file is sorted, once processed all target values,
     // we need not process the remaining values
     bool go_fwd = false, go_bwd = false, query_processed = false;
     bool bwd_search_done = false, fwd_search_done = false;
-    int total_pages = last_page;//getLastPageNumber(input_handler, /*keep pinned*/ false);
-//    cout<<total_pages<<endl;
+    int total_pages = last_page;
     int top_pg = 0;
     int bottom_pg = last_page;
     int curr_page_number;
@@ -189,12 +186,10 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
                     // traversing from the last entry of the page to first entry
                     int curr_number;
                     memcpy(&curr_number, &data[i], sizeof(int));
-//                    cout<<"Page numb:"<<curr_page_number<<" val "<<curr_number<<endl;
                     if (curr_number == target_number) {
                         found_it = true;
                         // store (page num, offset) into the output file page
                         int offset = i/sizeof(int);
-                        // cout<<"Page numb:"<<curr_page_number<<" at "<<offset<< " val = "<< curr_number<<endl;
                         //update start point
                         if (answer[0][0] > curr_page_number){
                             answer[0][0] = curr_page_number;
@@ -238,13 +233,10 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
                 // traversing from the last entry of the page to first entry
                 int curr_number;
                 memcpy(&curr_number, &data[i], sizeof(int));
-//                cout<<"Page numb:"<<curr_page_number<<" val "<<curr_number<<endl;
                 if (curr_number == target_number) {
                     found_it = true;
                     // store (page num, offset) into the output file page
                     int offset = i/sizeof(int);
-                    // cout<<"Page numb:"<<curr_page_number<<" at "<<offset<< " val = "<< curr_number<<endl;
-
                     //update start point
                     if (answer[0][0] > curr_page_number){
                         answer[0][0] = curr_page_number;
@@ -282,8 +274,6 @@ vector<vector<int> > binary_search(int target_number, FileHandler &input_handler
         // Done all search up and down
         if (fwd_search_done && bwd_search_done) break;
     }
-
-    // cout<<"Page num: "<<start_page_handler.GetPageNum()<<endl;
 	return answer;
 }
 
@@ -339,15 +329,12 @@ int main(int argc, char **argv) {
 				bin_start_handler = getMidPageHandler(input_handler);	
 				vector<vector<int> > loc;
 				loc = binary_search(target_number, input_handler, bin_start_handler);
-				// Binary search procedure updates the bin_start_handler to point to the page of first occurence of the integer to be deleted.
-				// cout << loc[0][0] << " " << loc[0][1] << " " << loc[1][0] << " " << loc[1][1] << endl;
 				int write_page_num = loc[0][0];
 				int write_offset = loc[0][1] * sizeof(int);
 				int rd_pg_num = loc[1][0];
 				int rd_offset = (loc[1][1] * sizeof(int)) + sizeof(int);
 
 				if (write_page_num == INT_MAX){
-					// cout << "Number not found!" << endl;
 					continue;
 				}
 
@@ -395,7 +382,6 @@ int main(int argc, char **argv) {
 						last_occur_pg_handler = input_handler.PageAt(rd_pg_num);
 						last_data = last_occur_pg_handler.GetData();
 						memcpy(&val, &last_data[rd_offset], sizeof(int));
-						// cout << "Start Val is " << val << endl;
 					}
 					else{
 						//If last occurrence is at last offset of the last page. No INT_MIN after that.
@@ -443,7 +429,6 @@ int main(int argc, char **argv) {
 					}
 					else{
 						while(val != int_min && (rd_pg_num != last_page || rd_offset != last_index + sizeof(int))) { // Main data copying loop
-							// cout << "First write of " << val << " at offset " << write_offset << " on page number " << write_page_num << endl;
 							memcpy(&data[write_offset], &val, sizeof(int));
 							if (write_offset == last_index){ //If writing to a page complete, proceed to the next page
 								input_handler.MarkDirty(write_page_num);
@@ -507,21 +492,12 @@ int main(int argc, char **argv) {
 				}
 			}
 			catch(...) {
-				cout << "Oops! Something went wrong. Exception Encountered" << endl;
+				// cout << "Oops! Something went wrong. Exception Encountered" << endl;
 				continue;
 			}
-			// char *my_output = "./TestCases/TC_delete/sorted_input";
-			// char *ta_output = "./TestCases/TC_delete/output_delete";
-			// printAnswers(fm, my_output, "My output");
-			// printAnswers(fm, ta_output, "TA output");
 		}
 	}
-	else cout << "Unable to open query file\n";
-	// cout<<"Exited"<<endl;
-	// char *my_output = "./TestCases/TC_delete/sorted_input";
-	// char *ta_output = "./TestCases/TC_delete/output_delete";
-	cout << last_page << endl;
-	printAnswers(fm, input_file_path, "My output");
+	// printAnswers(fm, input_file_path, "My output");
 	fm.CloseFile(input_handler);
 	// printAnswers(fm, ta_output, "TA output");
 	return 0;
