@@ -32,7 +32,7 @@ int int_min = INT_MIN;
 void updateFilePaths(int argc, char **argv) {
     /* This file updates file paths using command line arguments */
     if (argc != 4) {
-        cout << "ERROR: command line arguments expected\n";
+        //cout << "ERROR: command line arguments expected\n";
         exit(0);
     }
     input_file_path = argv[1];
@@ -193,9 +193,9 @@ int main(int argc, char **argv) {
                 }
 //                input_handler.UnpinPage(curr_page_handler.GetPageNum());// so that it can be replaced
             }
-            catch (exception &e) { cout << e.what() << endl; }
-            catch (const char *e) { cout << e << endl; }
-            catch (...) { cout << "Unknown exception occured\n"; }
+            catch (exception &e) { }//cout << e.what() << endl; }
+            catch (const char *e) { }//cout << e << endl; }
+            catch (...) {}// { cout << "Unknown exception occured\n"; }
 
             // Since we are done with one query, writing (-1, -1) pair in output page
             if (integers_written_on_output_page >= integers_per_page) {
@@ -210,7 +210,6 @@ int main(int argc, char **argv) {
             memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &MINUS_ONE, sizeof(int));
             ++integers_written_on_output_page;
             ++counter;
-            //break; // #TODO: remove this line for processing all queries
         }
         // fill the empty space with int_min
         for (int j=integers_written_on_output_page; j<= integers_per_page; ++j) {
@@ -219,16 +218,16 @@ int main(int argc, char **argv) {
             ++integers_written_on_output_page;
         }
     }
-    else cout << "Unable to open query file\n";
+    //else cout << "Unable to open query file\n";
     output_handler.UnpinPage(output_page_handler.GetPageNum());//so that it can be flushed
     output_handler.FlushPages(); // flush output pages
     fm.CloseFile (output_handler);
     fm.CloseFile(input_handler);
 
     // #TODO: following lines are only for debugging. Remove it in final submission
-    char *my_output = "./output_search";
-    char *ta_output = "./TestCases/TC_search/output_search";
-    printAnswers(fm, my_output, "My output");
-    printAnswers(fm, ta_output, "TA output");
+    //char *my_output = "./output_search";
+    //char *ta_output = "./TestCases/TC_search/output_search";
+    //printAnswers(fm, my_output, "My output");
+    //printAnswers(fm, ta_output, "TA output");
     return 0;
 }
