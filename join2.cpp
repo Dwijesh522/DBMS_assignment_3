@@ -25,6 +25,7 @@ PageHandler getLastPageHandler(FileHandler &fh, bool keep_pinned);
 PageHandler getFirstPageHandler(FileHandler &fh, bool keep_pinned);
 void fillWithIntMin(PageHandler &ph, const int &integers_per_page, int &integers_written_on_output_page);
 void validateAnswers(FileManager &fm);
+void updateFilePaths(int argc, char **argv);
 
 inline int charToInt(char *array, int offset) {
     /* returns int(array[offset]); */
@@ -32,6 +33,7 @@ inline int charToInt(char *array, int offset) {
     memcpy(&data, &array[offset], sizeof(int));
     return data;
 }
+
 PageHandler getPageHandler(FileHandler &fh, int page_number, bool keep_pinned=false) {
 	/*
 	 *	When we call fh.FirstPage().getPageNum(), it brings the last page
@@ -189,81 +191,44 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
 }
 
 
-int main() {
-
+int main(int argc, char **argv) {
+    updateFilePaths(argc, argv);
 	int integers_per_page = PAGE_CONTENT_SIZE / sizeof(int);
 	FileManager fm;
 	FileHandler output_handler = fm.CreateFile(output_file_path);
 	PageHandler output_page_handler = output_handler.NewPage(); // pinned and dirty
 	int integers_written_on_output_page = 0;
-
-    FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
-    PageHandler input1_page_handler = getFirstPageHandler(input1_handler, /*keep pinned*/true); // pinned
-    int total_pages1 = getLastPageNumber(input1_handler, /*keep pinned*/ false);
-//    cout<<"Total1 = "<<total_pages1<<endl;
-    FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
-    int total_pages2 = getLastPageNumber(input2_handler, /*keep pinned*/ false);
-//    cout<<"Total2 = "<<total_pages2<<endl;
-    while (true) { // traversing from back
-        char *input1_data = input1_page_handler.GetData();
-        // loop in the page from top to bottom
-        for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
-            int input1 = charToInt(input1_data, i);
-            if(input1==INT_MIN) continue;
-            // page_number, offset of the earliest occurrence of input1 in input2
-//            cout<<"Target: "<<input1<<endl;
-            vector<int> start_addr = binary_search_start(input1, input2_handler);
-            int page_number = start_addr[0];
-            int offset = start_addr[1];
-            if(page_number==-1)
-                continue;
-            else{
-                PageHandler input2_page_handler = input2_handler.PageAt(page_number);
-                char *input2_data = input2_page_handler.GetData();
-
-                while(true){
-                    int input2 = charToInt(input2_data, offset*sizeof(int));
-                    if (input1 == input2) { // write input1 on output page
-//                        cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
-                        if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
-                            output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
-                            output_page_handler = output_handler.NewPage();	// pinned and dirty
-                            integers_written_on_output_page = 0; // new page is empty
-                        }
-                        char *output_data = output_page_handler.GetData();
-                        memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &input2, sizeof(int));
-                        ++integers_written_on_output_page;
-
-                        if(offset<integers_per_page-1)
-                            offset++;
-                        else{ //move to next page
-                            offset = 0;
-                            if(page_number < total_pages2){
-                                input2_handler.UnpinPage(page_number); //unpin last page traversed
-                                ++page_number;
-                                input2_page_handler = input2_handler.PageAt(page_number);
-                                input2_data = input2_page_handler.GetData();
-                            }
-                            else //reached end of pages in input2
-                                break;
-                        }
-                    }
-                    else //in a sorted file numbers can only exist contiguously
-                        break;
-                }
-                input2_handler.UnpinPage(page_number); //unpin it
-
-                // GO backward !
-                if(start_addr[1]==0 && page_number>0){
-                    page_number = start_addr[0]-1;
-                    offset = integers_per_page-1;
+    bool join_exists = false;
+    try {
+        FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
+        PageHandler input1_page_handler = getFirstPageHandler(input1_handler, /*keep pinned*/true); // pinned
+        int total_pages1 = getLastPageNumber(input1_handler, /*keep pinned*/ false);
+    //    cout<<"Total1 = "<<total_pages1<<endl;
+        FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
+        int total_pages2 = getLastPageNumber(input2_handler, /*keep pinned*/ false);
+    //    cout<<"Total2 = "<<total_pages2<<endl;
+        while (true) { // traversing from back
+            char *input1_data = input1_page_handler.GetData();
+            // loop in the page from top to bottom
+            for (int i=0; i<= sizeof(int)*(integers_per_page-1); i+= sizeof(int)) {
+                int input1 = charToInt(input1_data, i);
+                if(input1==INT_MIN) continue;
+                // page_number, offset of the earliest occurrence of input1 in input2
+    //            cout<<"Target: "<<input1<<endl;
+                vector<int> start_addr = binary_search_start(input1, input2_handler);
+                int page_number = start_addr[0];
+                int offset = start_addr[1];
+                if(page_number==-1)
+                    continue;
+                else{
                     PageHandler input2_page_handler = input2_handler.PageAt(page_number);
                     char *input2_data = input2_page_handler.GetData();
 
                     while(true){
                         int input2 = charToInt(input2_data, offset*sizeof(int));
                         if (input1 == input2) { // write input1 on output page
-//                            cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
+                            join_exists = true;
+    //                        cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
                             if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
                                 output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
                                 output_page_handler = output_handler.NewPage();	// pinned and dirty
@@ -273,13 +238,13 @@ int main() {
                             memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &input2, sizeof(int));
                             ++integers_written_on_output_page;
 
-                            if(offset>0)
-                                offset--;
+                            if(offset<integers_per_page-1)
+                                offset++;
                             else{ //move to next page
-                                offset = integers_per_page-1;
-                                if(page_number > 0){
+                                offset = 0;
+                                if(page_number < total_pages2){
                                     input2_handler.UnpinPage(page_number); //unpin last page traversed
-                                    --page_number;
+                                    ++page_number;
                                     input2_page_handler = input2_handler.PageAt(page_number);
                                     input2_data = input2_page_handler.GetData();
                                 }
@@ -291,23 +256,66 @@ int main() {
                             break;
                     }
                     input2_handler.UnpinPage(page_number); //unpin it
-                }
 
+                    // GO backward !
+                    if(start_addr[1]==0 && page_number>0){
+                        page_number = start_addr[0]-1;
+                        offset = integers_per_page-1;
+                        PageHandler input2_page_handler = input2_handler.PageAt(page_number);
+                        char *input2_data = input2_page_handler.GetData();
+
+                        while(true){
+                            int input2 = charToInt(input2_data, offset*sizeof(int));
+                            if (input1 == input2) { // write input1 on output page
+                                join_exists = true;
+    //                            cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
+                                if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
+                                    output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
+                                    output_page_handler = output_handler.NewPage();	// pinned and dirty
+                                    integers_written_on_output_page = 0; // new page is empty
+                                }
+                                char *output_data = output_page_handler.GetData();
+                                memcpy(&output_data[integers_written_on_output_page * sizeof(int)], &input2, sizeof(int));
+                                ++integers_written_on_output_page;
+
+                                if(offset>0)
+                                    offset--;
+                                else{ //move to next page
+                                    offset = integers_per_page-1;
+                                    if(page_number > 0){
+                                        input2_handler.UnpinPage(page_number); //unpin last page traversed
+                                        --page_number;
+                                        input2_page_handler = input2_handler.PageAt(page_number);
+                                        input2_data = input2_page_handler.GetData();
+                                    }
+                                    else //reached end of pages in input2
+                                        break;
+                                }
+                            }
+                            else //in a sorted file numbers can only exist contiguously
+                                break;
+                        }
+                        input2_handler.UnpinPage(page_number); //unpin it
+                    }
+
+                }
             }
+            if (input1_page_handler.GetPageNum() == total_pages1) break;
+            input1_handler.UnpinPage(input1_page_handler.GetPageNum()); // will page get flushed even if pinned ??
+            input1_page_handler = input1_handler.NextPage(input1_page_handler.GetPageNum()); // bringing input1 page in buffer
         }
-        if (input1_page_handler.GetPageNum() == total_pages1) break;
-        input1_handler.UnpinPage(input1_page_handler.GetPageNum()); // will page get flushed even if pinned ??
-        input1_page_handler = input1_handler.NextPage(input1_page_handler.GetPageNum()); // bringing input1 page in buffer
     }
-    fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
+    catch (...) {}
+    if (join_exists) fillWithIntMin(output_page_handler, integers_per_page, integers_written_on_output_page);
+    else output_handler.DisposePage(output_page_handler.GetPageNum());
 	output_handler.FlushPages(); // flush all pages since we are done
 	fm.CloseFile (output_handler);
-
+    cout << "before\n";
     validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
-    char *in1_output = "./TestCases/TC_join2/input1_join2";
-    char *in2_output = "./TestCases/TC_join2/input2_join2_updated";
-    char *my_output = "./output_join2";
-    char *ta_output = "./TestCases/TC_join2/output_join2";
+//    char *in1_output = "./TestCases/TC_join2/input1_join2";
+//    char *in2_output = "./TestCases/TC_join2/input2_join2_updated";
+//    char *my_output = "./output_join2";
+//    char *ta_output = "./TestCases/TC_join2/output_join2";
 //  printAnswers(fm, in1_output, "Input1 output");
 //	printAnswers(fm, in2_output, "Input2 output");
 //	printAnswers(fm, my_output, "My Output");
@@ -316,6 +324,18 @@ int main() {
 }
 
 // Helper functions
+
+void updateFilePaths(int argc, char **argv) {
+    /* read input1, input2, output file paths from command line*/
+    if (argc != 4) {
+        cout << "ERROR: command line arguments expected\n";
+        exit(0);
+    }
+    input1_file_path = argv[1];
+    input2_file_path = argv[2];
+    output_file_path = argv[3];
+}
+
 void fillWithIntMin(PageHandler &ph, const int &integers_per_page, int &integers_written_on_output_page) {
     /*
      *  This function fills the remaining page with INT_MIN.
