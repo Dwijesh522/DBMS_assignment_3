@@ -77,13 +77,13 @@ int main(int argc, char **argv) {
         fm.CloseFile(input1_handler);
         fm.CloseFile(input2_handler);
     } catch (const char * error) {
-        cout << error << endl;
+        //cout << error << endl;
     } catch (exception &e) {
-        cout << e.what() << endl;
+        //cout << e.what() << endl;
     }
     fm.CloseFile (output_handler);
 
-    validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
+    //validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
     return 0;
 }
 
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 void updateFilePaths(int argc, char **argv) {
     /* update file paths using command line args*/
     if (argc != 4) {
-        cout << "ERROR: commandline arguments expected\n";
+        //cout << "ERROR: commandline arguments expected\n";
         exit(0);
     }
     input1_file_path = argv[1];
