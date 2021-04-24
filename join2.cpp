@@ -131,7 +131,7 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler, v
             curr_number_bottom = page_range[curr_page_number][1];
         }
         else{   //read the page
-            cout<<"Page accessed"<<endl;
+            //cout<<"Page accessed"<<endl;
             curr_page_handler = getPageHandler(input_handler, curr_page_number, /*keep_pinned*/true);
             data = curr_page_handler.GetData();
             // first entry on curr page
@@ -157,7 +157,7 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler, v
                 go_bwd = true, bwd_search_done = true; /* no need to check pages before as curr_number_top < target_number */
                 bool found_it = false;
                 if(page_known){
-                    cout<<"Page accessed"<<endl;
+                    //cout<<"Page accessed"<<endl;
                     curr_page_handler = getPageHandler(input_handler, curr_page_number, /*keep_pinned*/true);
                     data = curr_page_handler.GetData();
                 }
@@ -330,11 +330,11 @@ int main(int argc, char **argv) {
 //    validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
 //    char *in1_output = "./TestCases/TC_join2/input1_join2";
 //    char *in2_output = "./TestCases/TC_join2/input2_join2_updated";
-    char *my_output = "./output_join2";
+//    char *my_output = "./output_join2";
 //    char *ta_output = "./TestCases/TC_join2/output_join2";
 //  printAnswers(fm, in1_output, "Input1 output");
 //	printAnswers(fm, in2_output, "Input2 output");
-	printAnswers(fm, my_output, "My Output");
+//	printAnswers(fm, my_output, "My Output");
 //	printAnswers(fm, ta_output, "Ta output");
 	return 0;
 }
@@ -345,7 +345,7 @@ int main(int argc, char **argv) {
 void updateFilePaths(int argc, char **argv) {
     /* read input1, input2, output file paths from command line*/
     if (argc != 4) {
-        cout << "ERROR: command line arguments expected\n";
+        //cout << "ERROR: command line arguments expected\n";
         exit(0);
     }
     input1_file_path = argv[1];
