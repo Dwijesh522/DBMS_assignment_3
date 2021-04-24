@@ -82,7 +82,7 @@ void printAnswers(FileManager &fm, char *file_path, string title) {
 }
 
 
-vector<int> binary_search_start(int target_number, FileHandler &input_handler){
+vector<int> binary_search_start(int target_number, FileHandler &input_handler, vector<vector<int> > &page_range, int total_pages){
 
     vector<int> answer(2);
     answer[0] = INT_MAX, answer[1] = INT_MAX;
@@ -91,7 +91,7 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
     // we need not process the remaining values
     bool go_bwd = false;
     bool bwd_search_done = false;
-    int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
+    //int total_pages = getLastPageNumber(input_handler, /*keep pinned*/ false);
     int top_pg = 0;
     int bottom_pg = total_pages;
     int curr_page_number;
@@ -101,6 +101,7 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
     int count_bwd = 0;
     // Binary Search on pages
     while (top_pg <= bottom_pg) {
+        bool page_known = false;
         if(answer[0]<INT_MAX || answer[1]<INT_MAX)
             break;
         // Update to next page
@@ -121,14 +122,23 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
         if(bwd_search_done)
             break;
 
-        curr_page_handler = input_handler.PageAt(curr_page_number);
-        input_handler.UnpinPage(curr_page_number); //unpinned
-        char *data = curr_page_handler.GetData();
-
-        // first entry on curr page
-        int curr_number_top = charToInt(data, 0);
-        // last entry on curr page
-        int curr_number_bottom = charToInt(data, last_index);
+        int curr_number_top, curr_number_bottom;
+        char *data;
+        // if page already traversed in past
+        if(page_range[curr_page_number][0]>INT_MIN){
+            page_known = true;
+            curr_number_top = page_range[curr_page_number][0];
+            curr_number_bottom = page_range[curr_page_number][1];
+        }
+        else{   //read the page
+            cout<<"Page accessed"<<endl;
+            curr_page_handler = getPageHandler(input_handler, curr_page_number, /*keep_pinned*/true);
+            data = curr_page_handler.GetData();
+            // first entry on curr page
+            memcpy(&curr_number_top, &data[0], sizeof(int));
+            // last entry on curr page
+            memcpy(&curr_number_bottom, &data[last_index], sizeof(int));
+        }
 
         if(curr_number_top < target_number){
             // not found yet
@@ -146,6 +156,11 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
                     index_page_number = curr_page_number;
                 go_bwd = true, bwd_search_done = true; /* no need to check pages before as curr_number_top < target_number */
                 bool found_it = false;
+                if(page_known){
+                    cout<<"Page accessed"<<endl;
+                    curr_page_handler = getPageHandler(input_handler, curr_page_number, /*keep_pinned*/true);
+                    data = curr_page_handler.GetData();
+                }
                 for (int i=0; i<=last_index; i+= sizeof(int)) {
                     // traversing from the last entry of the page to first entry
                     int curr_number;
@@ -158,11 +173,8 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
                         answer[1] = offset;
                         break;
                     }
-                    /*else if (curr_number != target_number && found_it) {
-                        bwd_search_done = true;
-                        break;
-                    }*/
                 }
+                if(page_known) input_handler.UnpinPage(curr_page_handler.GetPageNum());
             }
         }
 
@@ -180,8 +192,12 @@ vector<int> binary_search_start(int target_number, FileHandler &input_handler){
         if(curr_number_top > target_number){
             bottom_pg = curr_page_number -1;
         }
-        // since we are done using the current input page, we can unpin it
-        input_handler.UnpinPage(curr_page_handler.GetPageNum());
+        // first traversal of the page, so set page_range
+        if(!page_known){
+            page_range[curr_page_number][0] = curr_number_top;
+            page_range[curr_page_number][1] = curr_number_bottom;
+            input_handler.UnpinPage(curr_page_handler.GetPageNum());
+        }
         // Done all search up and down
         if (bwd_search_done) break;
     }
@@ -203,10 +219,9 @@ int main(int argc, char **argv) {
         FileHandler input1_handler = fm.OpenFile(input1_file_path); // input1
         PageHandler input1_page_handler = getFirstPageHandler(input1_handler, /*keep pinned*/true); // pinned
         int total_pages1 = getLastPageNumber(input1_handler, /*keep pinned*/ false);
-    //    cout<<"Total1 = "<<total_pages1<<endl;
         FileHandler input2_handler = fm.OpenFile(input2_file_path); // input2
         int total_pages2 = getLastPageNumber(input2_handler, /*keep pinned*/ false);
-    //    cout<<"Total2 = "<<total_pages2<<endl;
+        vector<vector<int> > page_range(total_pages2+1, vector<int>(2, INT_MIN));
         while (true) { // traversing from back
             char *input1_data = input1_page_handler.GetData();
             // loop in the page from top to bottom
@@ -215,19 +230,21 @@ int main(int argc, char **argv) {
                 if(input1==INT_MIN) continue;
                 // page_number, offset of the earliest occurrence of input1 in input2
     //            cout<<"Target: "<<input1<<endl;
-                vector<int> start_addr = binary_search_start(input1, input2_handler);
+                vector<int> start_addr = binary_search_start(input1, input2_handler, page_range, total_pages2);
                 int page_number = start_addr[0];
                 int offset = start_addr[1];
                 if(page_number==-1)
                     continue;
                 else{
+                    join_exists = true;
                     PageHandler input2_page_handler = input2_handler.PageAt(page_number);
                     char *input2_data = input2_page_handler.GetData();
 
                     while(true){
+
                         int input2 = charToInt(input2_data, offset*sizeof(int));
                         if (input1 == input2) { // write input1 on output page
-                            join_exists = true;
+
     //                        cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
                             if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
                                 output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
@@ -267,7 +284,6 @@ int main(int argc, char **argv) {
                         while(true){
                             int input2 = charToInt(input2_data, offset*sizeof(int));
                             if (input1 == input2) { // write input1 on output page
-                                join_exists = true;
     //                            cout<<"Page numb: "<<page_number<<" at "<<offset<< " val = "<< input2<<endl;
                                 if (integers_written_on_output_page >= integers_per_page) { // output page is full. Get a new page.
                                     output_handler.FlushPage(output_page_handler.GetPageNum()); // write otuput page to disk and remove from buffer
@@ -310,18 +326,19 @@ int main(int argc, char **argv) {
     else output_handler.DisposePage(output_page_handler.GetPageNum());
 	output_handler.FlushPages(); // flush all pages since we are done
 	fm.CloseFile (output_handler);
-    cout << "before\n";
-    validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
+//    cout << "before\n";
+//    validateAnswers(fm); // TODO: only for debugging. Remove it in final submission
 //    char *in1_output = "./TestCases/TC_join2/input1_join2";
 //    char *in2_output = "./TestCases/TC_join2/input2_join2_updated";
-//    char *my_output = "./output_join2";
+    char *my_output = "./output_join2";
 //    char *ta_output = "./TestCases/TC_join2/output_join2";
 //  printAnswers(fm, in1_output, "Input1 output");
 //	printAnswers(fm, in2_output, "Input2 output");
-//	printAnswers(fm, my_output, "My Output");
+	printAnswers(fm, my_output, "My Output");
 //	printAnswers(fm, ta_output, "Ta output");
 	return 0;
 }
+
 
 // Helper functions
 
@@ -463,12 +480,3 @@ void validateAnswers(FileManager &fm) {
     if (correct)    cout << "Your answer is correct !!\n";
     else cout << "Your answer has some mismatches !!\n";
 }
-
-
-
-
-
-
-
-
-
